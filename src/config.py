@@ -8,11 +8,11 @@ Created on Fri Jun 20 18:25:14 2025
 from dataclasses import dataclass
 # import io
 
+
 @dataclass
 class PredictionConfig:
-    
-    video_path:str = None
-    sample_freq:int=5
-    cache_dir:str=".cache"
-    
-    batch_frames:int = 5
+    video_path: str = None
+    sample_freq: int = 5
+    cache_dir: str = ".cache"
+
+    batch_frames: int = 5
