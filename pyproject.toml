@@ -1,7 +1,7 @@
 [project]
-name = "video-qa"
+name = "watcher"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI system to analyze aerial video surveillance footage and identify activities."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,5 +10,5 @@ dependencies = [
     "pillow>=11.2.1",
     "python-dotenv>=1.1.0",
     "spyder-kernels==3.0.*",
-    "streamlit>=1.46.0",
+    "streamlit==1.46.0",
 ]

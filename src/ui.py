@@ -2,49 +2,15 @@ import streamlit as st
 import time
 import io
 from datetime import datetime
-
+import random
+import json
 import os
+from watcher.synthetizer import analyze_video
+from watcher.config import PredictionConfig
 from dotenv import load_dotenv
-
-from utils import frame_loader
-from config import PredictionConfig
-from vlm import DspyAnalyzer, Summarizer
 
 DOT_ENV = "../.env"
 
-
-def analyze_video(
-    video_buffer: io.BytesIO, sample_freq: int = 24, batch_frames: int = 2
-) -> list[str]:
-    assert isinstance(video_buffer, io.BytesIO), (
-        "Expected type 'io.BytesIO' but received {type(video_buffer)} "
-    )
-
-    load_dotenv(DOT_ENV)
-
-    handler_analyze = DspyAnalyzer(model="openai/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF")
-    handler_summary = Summarizer(
-        model="openai/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF", temperature=0.1
-    )
-
-    args = PredictionConfig(
-        video_path=video_buffer.get_value(),
-        sample_freq=sample_freq,
-        cache_dir="../.cache",
-        batch_frames=batch_frames,
-    )
-
-    # Analyze frames
-    loader = frame_loader(args=args, img_as_bytes=True)
-    out = []
-    for frames, ts in loader:
-        o = handler_analyze.run(frames)
-        out.append(o)
-
-    # Summarize analysis
-    response = handler_summary(out)
-
-    return response
 
 
 def main():
@@ -121,16 +87,36 @@ def main():
             sample_freq = st.number_input(
                 "Sampling frequency",
                 min_value=1,
-                value=24,
-                help="Downsampling rate. 24 means we retain 1 frame for 24 frames.",
+                value=5,
+                help="Downsampling rate. 5 means we retain 1 frame per 5 seconds.",
             )
+            temperature = st.number_input(
+                "Temperature",
+                min_value=0.,
+                value=0.7,
+                help="Temperature of VLM",
+            )
+            batch_frames = st.number_input(
+                "Batch frames",
+                min_value=1,
+                value=1,
+                help="Number of frames to process in each batch. Higher values may speed up processing but require more memory.",
+            )
+
 
         st.divider()
 
         # Analysis button
         analyze_button = st.button(
-            "🚀 Start Analysis",
+            "Start Analysis",
             type="primary",
+            disabled=not uploaded_video,
+            use_container_width=True,
+        )
+
+        analyze_button_2 = st.button(
+            "Recognize activities",
+            type="secondary",
             disabled=not uploaded_video,
             use_container_width=True,
         )
@@ -141,76 +127,113 @@ def main():
             if not uploaded_video:
                 st.warning("⚠️ Please upload a video")
 
-    # Main content area
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        # Video display section
-        if uploaded_video:
-            st.subheader("📹 Video Preview")
-            st.video(uploaded_video)
-
-            # Video info
-            with st.expander("ℹ️ Video Information"):
-                st.write(f"**Filename:** {uploaded_video.name}")
-                st.write(f"**File size:** {uploaded_video.size / 1024 / 1024:.2f} MB")
-                st.write(f"**File type:** {uploaded_video.type}")
-        else:
-            st.info("👆 Please upload a video file using the sidebar to get started")
-
-    with col2:
-        # Quick info panel
-        st.subheader("📊 Analysis Info")
-
-        if uploaded_video:
-            st.markdown(
-                f"""
-            <div class="result-box">
-                <strong>Video Status:</strong> Ready<br>
-                <strong>Duration:</strong> Processing...<br>
-                <strong>Format:</strong> {uploaded_video.type}
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    # Analysis Results Section
-    st.divider()
-
-    if analyze_button and uploaded_video:
-        st.subheader("🔍 Analysis Results")
-        with st.spinner("Running..."):
-            analysis = analyze_video(uploaded_video, sample_freq=sample_freq)
-
-        # Detailed results tabs
-        (tab1,) = st.tabs(
+    (tab1,) = st.tabs(
             [
-                "🎯 Key Insights",
+                "Video Analysis",
             ]
         )
+    
+    with tab1:
+        # Main content area
+        col1, col2 = st.columns([2, 1])
 
-        with tab1:
-            st.markdown("#### Main Findings")
+        with col1:
+            # Video display section
+            if uploaded_video:
+                st.subheader("📹 Video Preview")
+                st.video(uploaded_video)
 
-            st.code(analysis, language="text")
+                # Video info
+                with st.expander("ℹ️ Video Information"):
+                    st.write(f"**Filename:** {uploaded_video.name}")
+                    st.write(f"**File size:** {uploaded_video.size / 1024 / 1024:.2f} MB")
+                    st.write(f"**File type:** {uploaded_video.type}")
+            else:
+                st.info("👆 Please upload a video file using the sidebar to get started")
 
-            # Download button for results
-            st.download_button(
-                label="📥 Download Analysis Results",
-                data=analysis,
-                file_name=f"analysis_{uploaded_video.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain",
+        with col2:
+            # Quick info panel
+            st.subheader("📊 Analysis Info")
+
+            if uploaded_video:
+                st.markdown(
+                    f"""
+                <div class="result-box">
+                    <strong>Video Status:</strong> Ready<br>
+                    <strong>Format:</strong> {uploaded_video.type}
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
+        # Analysis Results Section
+        st.divider()
+
+        if analyze_button and uploaded_video:
+            st.subheader("🔍 Analysis Results")
+            with st.spinner("Running..."):
+                load_dotenv(DOT_ENV)
+                args=PredictionConfig(video=uploaded_video,
+                                    sample_freq=sample_freq,
+                                    temperature=temperature,
+                                    cache_dir="../.cache",
+                                    model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B"),
+                                    batch_frames=batch_frames,
+                                    )
+                
+
+                frames_analysis, timestamps, analysis = analyze_video(args=args)
+
+                # time.sleep(2)  # Simulate processing time
+                # analysis = "There is a car driving on the road"
+                # frames_analysis = ["Car detected", "No car", "Car detected"]
+                # timestamps = [0, 5, 10]  # Simulated timestamps
+
+                metadata = {f"Time: {timestamps[i]}s": frames_analysis[i] for i in range(len(timestamps))}
+
+            # Detailed results tabs
+            (tab1,) = st.tabs(
+                [
+                    "🎯 Key Insights",
+                ]
             )
 
-        st.markdown("</div>", unsafe_allow_html=True)
+            with tab1:
+                st.markdown("#### Main Findings")
+
+                st.code(analysis, language="text")
+                st.write(metadata)
+
+                # Download button for results
+                st.download_button(
+                    label="📥 Download Analysis Results",
+                    data=analysis,
+                    file_name=f"analysis_{uploaded_video.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                )
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # Activity Recognition Section
+    st.divider()
+    
+    if analyze_button_2 and uploaded_video:
+        st.subheader("🏃 Activity Recognition")        
+        with st.spinner("Analyzing activities..."):
+            time.sleep(2)
+
+        # Simulated activity recognition results
+        activities = ["vehicles driving", "people walking", "animals running"]
+        recog_activities = {f"Time: {random.randint(i,(i+10)**2)}s": activities[i] for i in range(len(activities))}
+
+        st.write(recog_activities)
 
     # Footer
     st.divider()
     st.markdown(
         """
     <div style='text-align: center; color: #666; padding: 1rem;'>
-        <p>Video Analysis Demo • Built with Streamlit • 
-        <span class="timestamp">Ready for your next analysis</span></p>
+        <p>Ready for your next analysis</p>
     </div>
     """,
         unsafe_allow_html=True,

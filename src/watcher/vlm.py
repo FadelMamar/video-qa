@@ -13,13 +13,16 @@ from typing import Sequence, List
 
 
 class Signature(dspy.Signature):
-    "Extract structured information from documents using Optical Character Recognition"
+    """Analzye the sequence of images from aerial video surveillance footage and accuractly identify and classify any activity. 
+       You should describe accurately what is happening.
+       For example, if a person is walking, running, or standing still, if there is a vehicle, a motorcycle doing any activity.
+    """
 
     images: List[dspy.Image] = dspy.InputField(
-        desc="image from videosurveillance camera"
+        desc="sequence of images from videosurveillance camera"
     )
     analysis: str = dspy.OutputField(
-        desc="description of images' content and human activity taking place"
+        desc="analysis of the sequence of aerial images"
     )
 
 
@@ -134,11 +137,11 @@ class DspyAnalyzer(Analyzer):
 
         assert prompting_mode in ["basic", "cot"], f"{prompting_mode} not supported."
 
-        lm = load_dspy_model(
+        self.lm = load_dspy_model(
             model=model, temperature=temperature, model_type="chat", cache=cache
         )
 
-        dspy.configure(lm=lm)
+        # dspy.configure(lm=self.lm)
 
         if prompting_mode == "cot":
             self.llm = dspy.ChainOfThought(Signature)
@@ -151,7 +154,8 @@ class DspyAnalyzer(Analyzer):
 
         images = [dspy.Image.from_file(a) for a in images]
 
-        response = self.llm(images=images)
+        with dspy.context(lm=self.lm):
+            response = self.llm(images=images)
 
         return response.analysis
 
@@ -164,7 +168,7 @@ class Summarizer:
         temperature: float = 0.5,
     ):
         self.lm = load_dspy_model(
-            model=model, temperature=temperature, model_type="text", cache=cache
+            model=model, temperature=temperature, model_type="chat", cache=cache
         )
 
         self.summarizer = dspy.ChainOfThought("document:list[str] -> summary:str")
@@ -176,32 +180,4 @@ class Summarizer:
         return response.summary
 
 
-# if __name__ == "__main__":
-#     from utils import frame_loader
-#     from config import PredictionConfig
-#     import os
-#     from dotenv import load_dotenv
-#     import openai
 
-#     load_dotenv("../.env")
-
-#     lm = DspyAnalyzer(model="openai/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF")
-
-#     args = PredictionConfig(video_path=r"D:\workspace\data\video\DJI_0023.MP4",
-#                             sample_freq=24,
-#                             cache_dir="../.cache",
-#                             batch_frames=5,
-#                             )
-
-#     loader = iter(frame_loader(args=args,img_as_bytes=True))
-
-#     # for _ in range(3):
-#     #     next(loader)
-
-#     frames, ts = next(loader)
-
-#     output = lm.run(frames)
-
-#     print(output)
-
-# output = lm.inference_with_api(images=frames,as_video=False)
