@@ -35,7 +35,7 @@ def get_video_frames(args: PredictionConfig):
     
     else:
         raise ValueError(
-            "video_path must be a string (file path) or bytes (file content)"
+            "video_path must be a string (file path), bytes (file content) or io.BytesIO (in-memory file)"
         )
 
     if isinstance(args.cache_dir,str) or isinstance(args.cache_dir, os.PathLike):
@@ -86,7 +86,7 @@ def numpy_to_bytes(image_np: np.ndarray,save_as:str="jpeg"):
     return buffer.getvalue()
 
 
-def frame_loader(args: PredictionConfig, img_as_bytes: bool = False):
+def frame_loader(args: PredictionConfig, img_as_bytes: bool = True):
     frames, timestamps = get_video_frames(args)
 
     func = lambda x: x
@@ -96,7 +96,7 @@ def frame_loader(args: PredictionConfig, img_as_bytes: bool = False):
     num_frames = len(frames)
     batch = args.batch_frames
     for i in range(0, num_frames, batch):
-        img_batch = [func(frames[i + k]) for k in range(min(num_frames, i + batch))]
+        img_batch = [func(frames[i+k]) for k in range(batch) if i + k < num_frames]
         yield img_batch, timestamps[i : min(num_frames, i + batch)]
 
 

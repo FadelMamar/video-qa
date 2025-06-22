@@ -25,6 +25,16 @@ class Signature(dspy.Signature):
         desc="analysis of the sequence of aerial images"
     )
 
+class SummarySignature(dspy.Signature):
+    """Analzye the descriptions of videosurveillance images and summarize them in a nice and concise matter for clear decision making.
+    """
+
+    image_descriptions: List[str] = dspy.InputField(
+        desc="sequence of images from videosurveillance camera"
+    )
+    summary: str = dspy.OutputField(
+        desc="summary of the descriptions"
+    )
 
 def load_dspy_model(
     model: str, temperature: float, model_type: str = "chat", cache: bool = True
@@ -165,17 +175,17 @@ class Summarizer:
         self,
         model: str = "openai/Qwen2.5-VL-3B",
         cache: bool = True,
-        temperature: float = 0.5,
+        temperature: float = 0.7,
     ):
         self.lm = load_dspy_model(
             model=model, temperature=temperature, model_type="chat", cache=cache
         )
 
-        self.summarizer = dspy.ChainOfThought("document:list[str] -> summary:str")
+        self.summarizer = dspy.ChainOfThought(SummarySignature)
 
     def run(self, texts: list[str]):
         with dspy.context(lm=self.lm):
-            response = self.summarizer(document=texts)
+            response = self.summarizer(image_descriptions=texts)
 
         return response.summary
 

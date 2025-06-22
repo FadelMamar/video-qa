@@ -19,7 +19,7 @@ def analyze_video(
                                    )
     handler_summary = Summarizer(
         model=args.model, 
-        temperature=0.1,
+        temperature=args.temperature,
         cache=True
     )
 
