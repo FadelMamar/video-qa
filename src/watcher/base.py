@@ -17,7 +17,7 @@ class Frame:
     """Data class to store frame results"""
     frame_id: int
     timestamp: float
-    frame: np.ndarray
+    image: np.ndarray
     detections: List[Detection]
     parent_video_id: str
     index_in_video: int

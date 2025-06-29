@@ -71,7 +71,8 @@ class DroneObjectDetector(ABC):
     def _load_model(self, model_path: str)->Model:
         pass
     
-    def preprocess_frames(self, frames: List[np.ndarray]) -> torch.Tensor:
+    @abstractmethod
+    def preprocess_frames(self, frames: List[Frame]):
         """
         Preprocess frames for model inference
         
@@ -81,24 +82,7 @@ class DroneObjectDetector(ABC):
         Returns:
             Preprocessed tensor ready for inference
         """
-        processed_frames = []
-        
-        for frame in frames:
-            # Convert BGR to RGB
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Resize to model input size
-            resized = cv2.resize(rgb_frame, self.input_size)
-            
-            # Normalize to [0, 1] and convert to CHW format
-            normalized = resized.astype(np.float32) / 255.0
-            chw_frame = np.transpose(normalized, (2, 0, 1))
-            
-            processed_frames.append(chw_frame)
-        
-        # Stack into batch and convert to tensor
-        batch_tensor = torch.from_numpy(np.stack(processed_frames))
-        return batch_tensor.to(self.device)
+        pass
     
     def postprocess_results(
         self,
@@ -144,12 +128,33 @@ class DroneObjectDetector(ABC):
             List of FrameResult objects with detections
         """
 
-        frames = self.model(frames)
+        if not frames:
+            return frames
         
-        # Postprocess results
-        frames = self.postprocess_results(frames)
+        for frame in frames:
+            assert isinstance(frame, Frame), "Frames must be a list of Frame objects"
         
-        return frames
+        start_time = time.time()
+        
+        try:
+            # Process frames through model
+            processed_frames = self.model(frames)
+            
+            # Postprocess results
+            processed_frames = self.postprocess_results(processed_frames)
+            
+            # Update performance metrics
+            processing_time = time.time() - start_time
+            self.total_frames_processed += len(frames)
+            self.total_processing_time += processing_time
+            
+            logger.debug(f"Processed {len(frames)} frames in {processing_time:.3f}s")
+            return processed_frames
+            
+        except Exception as e:
+            logger.error(f"Error in batch detection: {e}")
+            raise
+        
             
     def detect_objects_single(
         self,
