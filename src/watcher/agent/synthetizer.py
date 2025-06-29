@@ -2,8 +2,8 @@ import io
 
 
 from .vlm import DspyAnalyzer, Summarizer
-from .config import PredictionConfig
-from .utils import frame_loader
+from ..config import PredictionConfig
+from ..utils import frame_loader
 
 def analyze_video(
     args:PredictionConfig,

@@ -7,21 +7,23 @@ Created on Fri Jun 20 18:25:14 2025
 
 from dataclasses import dataclass
 import io
+from typing import Optional, Union
 
 
 @dataclass
 class PredictionConfig:
-    video: str|bytes|io.BytesIO = None
 
-    model:str=None
+    model: Optional[str] = None
     temperature: float = 0.7
     prompting_mode:str="basic"  # Options: "basic", "cot"
 
     sample_freq: int = 5
     batch_frames: int = 5
+    max_frames: Optional[int] = None  # Maximum frames to extract (None for all)
 
     cache_dir: str = ".cache"
     save_as: str = "jpeg"  # Format to save frames, e.g., "jpeg", "png"
+    image_quality: int = 85  # JPEG quality (1-100, only for JPEG)
     
 
     def __post_init__(self):
@@ -33,3 +35,5 @@ class PredictionConfig:
             raise ValueError("batch_frames must be a positive integer")
         if not self.cache_dir:
             self.cache_dir = ".cache"
+        if not isinstance(self.image_quality, int) or self.image_quality < 1 or self.image_quality > 100:
+            raise ValueError("image_quality must be an integer between 1 and 100")
