@@ -8,9 +8,11 @@ import cv2
 import torch
 from ultralytics import YOLO
 from ultralytics.engine.results import Results, Boxes
+import supervision as sv
+
 import warnings
 
-from .base import Model, DroneObjectDetector
+from .base import DroneObjectDetector
 from ..base import Frame, Detection
 
 # Configure logging
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-class YOLOModel(Model):
+class YOLOModel:
     """
     YOLO model wrapper that implements the Model interface from base.py
     """
@@ -51,17 +53,55 @@ class YOLOModel(Model):
         self.batch_size = batch_size
         self.model = None
         self._load_model()
+        self.label_map = {}
     
     def _load_model(self):
         """Load the YOLO model"""
         try:
             self.model = YOLO(self.model_path)
             logger.info(f"Loaded YOLO model from {self.model_path}")
+            self.label_map = self.model.names
         except Exception as e:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
     
-    def __call__(self, frames: List[Frame]) -> List[Frame]:
+    def _sliced_inference(self, image: np.ndarray) -> sv.Detections:
+        """
+        Run inference on a list of frames in a batched manner.
+        """
+        box_annotator = sv.BoundingBoxAnnotator()
+        label_annotator = sv.LabelAnnotator()
+
+        def callback(image: np.ndarray) -> sv.Detections:
+            result = self.model(image)[0]
+            detections = sv.Detections.from_ultralytics(result)
+            annotated_image = box_annotator.annotate(image.copy(), detections=detections)
+            annotated_image = label_annotator.annotate(annotated_image, detections=detections)
+            return annotated_image
+        
+        slicer = sv.InferenceSlicer(callback = callback)
+        detections = slicer(image)
+        output = dict(bbox=detections.xyxy,
+                      label=detections.class_id,
+                      confidence=detections.confidence)
+        return output
+    
+    def _inference(self, image: np.ndarray) -> sv.Detections:
+        # Run inference
+        results = self.model(image, 
+        verbose=False, 
+        imgsz=max(self.input_size), 
+        conf=self.confidence_threshold, 
+        max_det=self.max_det, 
+        device=self.device)
+
+        detections = sv.Detections.from_ultralytics(results)
+        output = dict(bbox=detections.xyxy,
+                      label=detections.class_id,
+                      confidence=detections.confidence)
+        return output
+    
+    def __call__(self, frames: List[Frame],sliced:bool=False) -> List[Frame]:
         """
         Process frames through YOLO model
         
@@ -72,22 +112,17 @@ class YOLOModel(Model):
             List of Frame objects with detections added
         """
         if not frames:
-            return frames
+            raise RuntimeError("YOLO model not loaded")
         
         if self.model is None:
             raise RuntimeError("YOLO model not loaded")
         
         # Extract frame images
-        frame_images = [frame.image for frame in frames]
         
-        # Run inference
-        results = self.model(frame_images, 
-        verbose=False, 
-        batch=self.batch_size,
-        imgsz=self.input_size, 
-        conf=self.confidence_threshold, 
-        max_det=self.max_det, 
-        device=self.device)
+        if sliced:
+            results = [self._sliced_inference(frame.image) for frame in frames]
+        else:
+            results = [self._inference(frame.image) for frame in frames]
         
         # Process results
         for frame, result in zip(frames, results):
@@ -95,7 +130,7 @@ class YOLOModel(Model):
         
         return frames
     
-    def _process_detections(self, result: Results, timestamp: float) -> List[Detection]:
+    def _process_detections(self, result: dict, timestamp: float) -> List[Detection]:
         """
         Convert YOLO results to Detection objects
         
@@ -108,33 +143,25 @@ class YOLOModel(Model):
         """
         detections = []
         
-        if result.boxes is None:
-            return detections
-        
         # Get boxes data
-        boxes = result.boxes
-         
-        if len(boxes) == 0:
-            return detections
-        
+        boxes = result["bbox"]
+        labels = result["label"]
+        confidences = result["confidence"]
+                 
         # Extract detection data
         for i in range(len(boxes)):
-            # Get box coordinates (x1, y1, x2, y2)
-            box = boxes.xyxy[i].cpu().numpy()
+            box = boxes[i]
             x1, y1, x2, y2 = box.tolist()
             
             # Get class info
-            class_id = int(boxes.cls[i].cpu().numpy())
-            confidence = float(boxes.conf[i].cpu().numpy())
-            
-            # Get class name
-            class_name = result.names.get(class_id, f"class_{class_id}")
-            
+            class_id = int(labels[i])
+            confidence = float(confidences[i])
+                        
             # Create Detection object
             detection = Detection(
                 bbox=(x1, y1, x2, y2),
                 class_id=class_id,
-                class_name=class_name,
+                class_name=self.label_map[class_id],
                 confidence=confidence,
                 frame_timestamp=timestamp
             )
@@ -142,7 +169,37 @@ class YOLOModel(Model):
             detections.append(detection)
         
         return detections
+    
+    def inference_video(self, video_path: str,output_path: str) -> List[Frame]:
+        """
+        Run inference on a video
+        """
+        box_annotator = sv.BoundingBoxAnnotator()
+        label_annotator = sv.LabelAnnotator()
+        tracker = sv.ByteTrack()
 
+        def callback(frame: np.ndarray, _: int) -> np.ndarray:
+            results = self.model(frame)[0]
+            detections = sv.Detections.from_ultralytics(results)
+            detections = tracker.update_with_detections(detections)
+            trace_annotator = sv.TraceAnnotator()
+            labels = [
+                f"#{tracker_id} {results.names[class_id]}"
+                for class_id, tracker_id
+                in zip(detections.class_id, detections.tracker_id)
+            ]
+            annotated_frame = box_annotator.annotate(
+                frame.copy(), detections=detections)
+            annotated_frame = label_annotator.annotate(
+                annotated_frame, detections=detections, labels=labels)
+            return trace_annotator.annotate(
+                annotated_frame, detections=detections)
+
+        sv.process_video(
+            source_path=video_path,
+            target_path=output_path
+            callback=callback
+        )
 
 class YOLODetector(DroneObjectDetector):
     """

@@ -7,18 +7,24 @@ Created on Fri Jun 20 18:25:14 2025
 
 from dataclasses import dataclass
 import io
-from typing import Optional, Union
+from typing import Optional, Union, Sequence
 
 
 @dataclass
 class PredictionConfig:
 
-    model: Optional[str] = None
+    vlm_model: Optional[str] = None
     temperature: float = 0.7
     prompting_mode:str="basic"  # Options: "basic", "cot"
 
+    clip_model:str="google/siglip2-base-patch16-224"
+    clip_device:str="cpu"
+    clip_input_size:Sequence[int]=(1024,1024)
+
+    img_as_bytes:bool=True
+
     sample_freq: int = 5
-    batch_frames: int = 5
+    batch_frames: int = 1
     max_frames: Optional[int] = None  # Maximum frames to extract (None for all)
 
     save_as: str = "jpeg"  # Format to save frames, e.g., "jpeg", "png"

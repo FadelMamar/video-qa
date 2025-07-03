@@ -4,9 +4,9 @@ from watcher.config import PredictionConfig
 from typing import Union, Optional
 import json
 
-def analyze(video: str, args: PredictionConfig, metadata: Optional[dict] = None) -> dict:
+def analyze(video: str, args: dict, metadata: Optional[dict] = None,activity_analysis: bool = False) -> dict:
     args = PredictionConfig(**args)
-    result = analyze_video(video=video, args=args, metadata=metadata)
+    result = analyze_video(video=video, args=args, metadata=metadata,activity_analysis=activity_analysis)
     return json.dumps(vars(result))
 
 

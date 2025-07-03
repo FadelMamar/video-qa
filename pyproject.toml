@@ -3,7 +3,7 @@ name = "watcher"
 version = "0.1.0"
 description = "AI system to analyze aerial video surveillance footage and identify activities."
 readme = "README.md"
-requires-python = "~=3.9"
+requires-python = "~=3.11"
 dependencies = [
     "decord>=0.6.0",
     "dspy==2.6.19",
@@ -13,10 +13,14 @@ dependencies = [
     "streamlit==1.46.0",
     "transformers>=4.30.0",
     "ultralytics>=8.0.0",
-    "torch==2.0.0",
+    "torch==2.6.0",
     "opencv-python>=4.8.0",
     "tqdm>=4.65.0",
     "blis==0.7.9",
-    "numpy>=2.0.2",
     "fire>=0.7.0",
+    "numpy>=2.0.2",
+    "py>=1.11.0",
+    "supervision>=0.25.1",
+    "accelerate>=1.8.1",
+    "bitsandbytes>=0.46.1",
 ]

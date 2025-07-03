@@ -15,10 +15,6 @@ logger = logging.getLogger(__name__)
 
 from ..base import Frame
 
-class Model(ABC):
-    @abstractmethod
-    def __call__(self, frames: List[Frame]) -> List[Frame]:
-        pass
 
 class DroneObjectDetector(ABC):
     """
@@ -68,7 +64,7 @@ class DroneObjectDetector(ABC):
         self.total_processing_time = 0.0
     
     @abstractmethod
-    def _load_model(self, model_path: str)->Model:
+    def _load_model(self, model_path: str):
         pass
     
     @abstractmethod

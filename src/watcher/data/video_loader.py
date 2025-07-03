@@ -301,7 +301,7 @@ class DataLoading:
             timestamp = timestamps[i].tolist()
 
             data_package = {
-                "timestamp":timestamp,
+                "timestamp":float(np.mean(timestamp)),
                 "frame": frame,
                 "offset_info": None,
             }

@@ -7,7 +7,7 @@ import logging
 from PIL import Image
 import io
 
-from ..base import ActivityType, ActivityClassificationResult, ACTIVITY_PROMPTS
+from ..base import ActivityClassificationResult, ACTIVITY_PROMPTS
 
 logger = logging.getLogger("Analyzer")
 
@@ -17,17 +17,15 @@ class ActivityClassifier(ABC):
     
     def __init__(self, model_path: str, 
                 device: str = "cpu",
-                confidence_threshold: float = 0.5,):
+                confidence_threshold: Optional[float] = None):
 
         self.device = device   
         self.confidence_threshold = confidence_threshold
         self.classifier =  self.load_model(model_path)
 
         # Activity type mapping
-        self.activity_types = list(ActivityType)
-        self.activity_to_idx = {act: idx for idx, act in enumerate(self.activity_types)}
-        self.idx_to_activity = {idx: act for act, idx in self.activity_to_idx.items()}
         self.activity_prompts = ACTIVITY_PROMPTS
+        self.prompt_to_activity = {v: k for k, v in self.activity_prompts.items()}
 
     def __call__(self, images: List[np.ndarray]) -> List[ActivityClassificationResult]:
         preprocessed_images = self.preprocess(images)
@@ -67,26 +65,6 @@ class BaseAnalyzer(ABC):
         """
         pass
     
-    def analyze_activity(
-        self, 
-        images: Union[bytes, List[bytes]], 
-        activity_type: Optional[ActivityType] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """
-        Analyze images for specific activity recognition.
-        
-        Args:
-            images: Single image bytes or list of image bytes
-            activity_type: Specific activity type to look for
-            context: Additional context information (e.g., tracked object info)
-            
-        Returns:
-            Activity analysis result as string
-        """
-        # Default implementation falls back to general analysis
-        return self.analyze(images)
-        
     def _calculate_bounding_region(self, bboxes: List[tuple]) -> tuple:
         """Calculate overall bounding region from sequence of bounding boxes."""
         if not bboxes:

@@ -13,5 +13,5 @@ start streamlit run app/ui.py --server.port 8501
 start D:\workspace\llama-cpp\llama-server.exe -hf ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m ^
      --port 8000 --ctx-size 20000
 
-@REM call D:\workspace\llama-cpp\llama-server.exe -hf ggml-org/InternVL3-2B-Instruct-GGUF:F16 ^
-@REM      --port 8000 
+@REM start D:\workspace\llama-cpp\llama-server.exe -hf ggml-org/Qwen3-1.7B-GGUF:q8_0 ^
+@REM      --port 8001 

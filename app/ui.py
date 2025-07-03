@@ -89,6 +89,14 @@ def main():
 
         st.divider()
 
+        sample_freq = st.number_input(
+            "Sampling frequency",
+            min_value=1,
+            value=5,
+            help="Downsampling rate. 5 means we retain 1 frame per 5 seconds.",
+            )   
+        activity_analysis = st.checkbox("Fast analysis",value=True,help="Uses faster method for activity analysis")
+
         if uploaded_video:
             st.success("✅ Ready to analyze!")
         else:
@@ -133,12 +141,7 @@ def main():
             disabled=not uploaded_video,
             use_container_width=True,
             )
-            sample_freq = st.number_input(
-            "Sampling frequency",
-            min_value=1,
-            value=5,
-            help="Downsampling rate. 5 means we retain 1 frame per 5 seconds.",
-            )   
+            
             temperature = float(os.getenv("TEMPERATURE",0.7))
             batch_frames = 1 
             model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B")
@@ -150,17 +153,17 @@ def main():
                     
                     args=PredictionConfig(sample_freq=sample_freq,
                                         temperature=temperature,
-                                        model=model,
+                                        vlm_model=model,
                                         batch_frames=batch_frames,
                                         )
                     
-                    result = analyze_video_cli(video=uploaded_video.getvalue(), args=args)
+                    result = analyze_video_cli(video=uploaded_video.getvalue(), args=args,metadata=None,activity_analysis=activity_analysis)
                     
                     summary = result.get("summary") if isinstance(result, dict) else None
                     timestamps = result.get("timestamps") if isinstance(result, dict) else None
                     frames_analysis = result.get("frames_analysis") if isinstance(result, dict) else None
                     if timestamps and frames_analysis:
-                        metadata = {f"Time: {timestamps[i]}s": frames_analysis[i] for i in range(len(timestamps))}
+                        metadata = {f"Time: {timestamps[i]:.2f}s": frames_analysis[i] for i in range(len(timestamps))}
                     else:
                         metadata = None
 
@@ -172,7 +175,7 @@ def main():
                 )
 
                 with tab1:
-                    st.markdown("#### Résultats")
+                    st.markdown("#### Main findings")
                     if summary:
                         st.write(summary)
                     if metadata:
@@ -192,7 +195,7 @@ def main():
     )
 
 
-def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None) -> FramesAnalysisResult:
+def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activity_analysis: bool = False) -> FramesAnalysisResult:
     import subprocess
     import json
     import tempfile
@@ -207,6 +210,7 @@ def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None) -> Fr
         "uv", "run", "cli.py", "analyze",
         video_path,
         f"--args={vars(args)}", 
+        f"--activity_analysis={activity_analysis}"
     ]
     if metadata is not None:
         cmd += [f"--metadata={json.dumps(metadata)}"]
@@ -240,7 +244,7 @@ def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None) -> Fr
     print("return code",returncode)
     try:
         return  json.loads(last_line)
-    except Exception:
+    except Exception as e:
         print(e)
 
     return  {}

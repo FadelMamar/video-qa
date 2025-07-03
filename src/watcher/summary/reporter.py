@@ -24,14 +24,11 @@ class VideoSummarySignature(dspy.Signature):
      and any notable events or anomalies detected across the sequence of images.
     """
     
-    frame_descriptions: List[str] = dspy.InputField(
+    frames_description: str = dspy.InputField(
         desc="Sequence of frame descriptions from video surveillance"
     )
-    timestamps: List[float] = dspy.InputField(
-        desc="Timestamps of frames in seconds since video start"
-    )
     summary: str = dspy.OutputField(
-        desc="Comprehensive summary of all activities and events"
+        desc="Comprehensive summary and analysis of all activities and events"
     )
 
 
@@ -80,10 +77,12 @@ class VideoSummarizer:
             raise ValueError("Number of analyses must match number of timestamps")
         
         try:
+
+            descriptions = [f"{frame_analyses[i]} at {timestamps[i]:.3f}s" for i in range(len(frame_analyses))]
+            descriptions = "\n".join(descriptions)
             with dspy.context(lm=self._lm):
                 response = self._summarizer(
-                    frame_descriptions=frame_analyses, 
-                    timestamps=timestamps
+                    frames_description=descriptions, 
                 )
             
             return response.summary

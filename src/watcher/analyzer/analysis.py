@@ -19,7 +19,8 @@ from .base import (
 from ..summary.reporter import VideoSummarizer
 from ..config import PredictionConfig
 from ..data.video_loader import DataLoading
-from ..base import Video, FramesAnalysisResult
+from ..base import Video, FramesAnalysisResult,ActivityClassificationResult
+from .clip_analyzer import CLIPClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,15 @@ class VideoAnalyzer:
         self._frame_analyzer = self._create_frame_analyzer()
         self._summarizer = self._create_summarizer()
         self._data_loader = DataLoading()
+        self._clip_classifier = CLIPClassifier(
+            model_path=self.config.clip_model,
+            device=self.config.clip_device,
+            input_size=self.config.clip_input_size
+        )
     
     def _validate_config(self) -> None:
         """Validate the configuration parameters."""
-        if not self.config.model:
+        if not self.config.vlm_model:
             raise ValueError("Model must be specified in configuration")
         
         if self.config.temperature < 0 or self.config.temperature > 1:
@@ -66,9 +72,9 @@ class VideoAnalyzer:
     
     def _create_model_config(self) -> ModelConfig:
         """Create model configuration from prediction config."""
-        assert self.config.model is not None, "Model should be validated by _validate_config"
+        assert self.config.vlm_model is not None, "Model should be validated by _validate_config"
         return ModelConfig(
-            model_name=self.config.model,
+            model_name=self.config.vlm_model,
             temperature=self.config.temperature,
             cache=True
         )
@@ -104,7 +110,7 @@ class VideoAnalyzer:
         """Create and configure the summarizer."""
         return VideoSummarizer(model_config=self._model_config)
     
-    def analyze_video(self, video: Video, cache_dir: Optional[str] = None) -> FramesAnalysisResult:
+    def analyze_video(self, video: Video, cache_dir: Optional[str] = None,activity_analysis: bool = False) -> FramesAnalysisResult:
         """
         Analyze a video and return comprehensive results.
         
@@ -126,12 +132,15 @@ class VideoAnalyzer:
                 video=video,
                 cache_dir=cache_dir,
                 sample_freq=self.config.sample_freq,
-                img_as_bytes=True,
+                img_as_bytes=self.config.img_as_bytes,
                 max_frames=self.config.max_frames
             )
             
             # Analyze frames
-            frames_analysis, timestamps = self._analyze_frames(loader)
+            if activity_analysis:
+                frames_analysis, timestamps = self._analyze_frames_activity(loader)
+            else:
+                frames_analysis, timestamps = self._analyze_frames(loader)
             
             # Generate summary
             summary = self._generate_summary(frames_analysis, timestamps)
@@ -176,6 +185,30 @@ class VideoAnalyzer:
         
         return frames_analysis, timestamps
     
+    def _analyze_frames_activity(self, loader) -> Tuple[List[str], List[float]]:
+        """
+        Analyze the activity of the frames.
+        """
+        frames_analysis = []
+        timestamps = []
+
+        for data_package in tqdm(loader,desc="Analyzing frames"):
+            try:
+                image = [data_package["frame"]]
+                activity_results = self._clip_classifier(image)
+                activity = str(activity_results[0].activity_type)
+                activity_and_conf = f"Detected activity:{activity}, confidence:{activity_results[0].confidence}"
+                frames_analysis.append(activity_and_conf)
+                timestamps.append(data_package["timestamp"])
+            except Exception as e:
+                logger.warning(
+                    f"Failed to analyze frame at timestamp "
+                    f"{data_package.get('timestamp', 'unknown')}: {e}"
+                )
+                continue
+                
+        return frames_analysis, timestamps
+
     def _generate_summary(self, frames_analysis: List[str], timestamps: List[float]) -> str:
         """
         Generate a comprehensive summary of the frame analyses.
@@ -228,6 +261,7 @@ def analyze_video(
     video: Union[str, bytes],
     args: PredictionConfig,
     metadata: Optional[dict] = None,
+    activity_analysis: bool = False
 ) -> FramesAnalysisResult:
     """
     Legacy function for backward compatibility.
@@ -252,7 +286,7 @@ def analyze_video(
         raise ValueError(f"Unsupported video type: {type(video)}")
 
     analyzer = VideoAnalyzer(args)
-    result = analyzer.analyze_video(video,cache_dir=os.environ.get("VIDEO_PREPROCESSED_DIR"))
+    result = analyzer.analyze_video(video,cache_dir=os.environ.get("VIDEO_PREPROCESSED_DIR"),activity_analysis=activity_analysis)
     
     if tmpfile_path:
         os.remove(tmpfile_path)

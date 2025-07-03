@@ -13,10 +13,10 @@ import dspy
 from .base import (
     ModelConfig,
     BaseAnalyzer,
-    ActivityType,
-    ACTIVITY_PROMPTS,
     logger
 )
+
+from ..base import ACTIVITY_PROMPTS, ActivityType
 
 LIST_OF_ACTIVITIES = list(ACTIVITY_PROMPTS.values())
 
