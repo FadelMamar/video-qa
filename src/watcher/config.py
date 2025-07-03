@@ -21,7 +21,6 @@ class PredictionConfig:
     batch_frames: int = 5
     max_frames: Optional[int] = None  # Maximum frames to extract (None for all)
 
-    cache_dir: str = ".cache"
     save_as: str = "jpeg"  # Format to save frames, e.g., "jpeg", "png"
     image_quality: int = 85  # JPEG quality (1-100, only for JPEG)
     
@@ -33,7 +32,8 @@ class PredictionConfig:
             raise ValueError("sample_freq must be a positive integer")
         if not isinstance(self.batch_frames, int) or self.batch_frames <= 0:
             raise ValueError("batch_frames must be a positive integer")
-        if not self.cache_dir:
-            self.cache_dir = ".cache"
+        
         if not isinstance(self.image_quality, int) or self.image_quality < 1 or self.image_quality > 100:
             raise ValueError("image_quality must be an integer between 1 and 100")
+        
+        assert self.max_frames is None or self.max_frames > 0, "max_frames must be a positive integer"

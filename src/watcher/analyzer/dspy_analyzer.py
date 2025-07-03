@@ -158,7 +158,6 @@ class DSPyFrameAnalyzer(BaseAnalyzer):
         
         return response.analysis
     
-
     def analyze_activity(
         self, 
         image: bytes, 
@@ -175,6 +174,7 @@ class DSPyFrameAnalyzer(BaseAnalyzer):
         Returns:
             Activity analysis result as string
         """
+        raise NotImplementedError("Activity analysis is not implemented for DSPy")
         # Validate and normalize input
         self._validate_images(image)
         image = self.load_image_as_pil(image)

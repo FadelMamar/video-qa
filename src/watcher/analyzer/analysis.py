@@ -8,17 +8,18 @@ vision-language models through the DSPy framework.
 import io
 import logging
 from typing import Union, List, Tuple, Optional
-
+import tempfile
+import os
+from tqdm import tqdm
 from .base import (
-    FramesAnalysisResult,
     ModelConfig,
     BaseAnalyzer,
-    Video
 )
 
 from ..summary.reporter import VideoSummarizer
 from ..config import PredictionConfig
 from ..data.video_loader import DataLoading
+from ..base import Video, FramesAnalysisResult
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class VideoAnalyzer:
         """Create and configure the summarizer."""
         return VideoSummarizer(model_config=self._model_config)
     
-    def analyze_video(self, video: Video) -> FramesAnalysisResult:
+    def analyze_video(self, video: Video, cache_dir: Optional[str] = None) -> FramesAnalysisResult:
         """
         Analyze a video and return comprehensive results.
         
@@ -123,7 +124,7 @@ class VideoAnalyzer:
             # Load and process video frames
             loader = self._data_loader.get_loader(
                 video=video,
-                cache_dir=self.config.cache_dir,
+                cache_dir=cache_dir,
                 sample_freq=self.config.sample_freq,
                 img_as_bytes=True,
                 max_frames=self.config.max_frames
@@ -136,7 +137,6 @@ class VideoAnalyzer:
             summary = self._generate_summary(frames_analysis, timestamps)
             
             return FramesAnalysisResult(
-                video=video,
                 frames_analysis=frames_analysis,
                 timestamps=timestamps,
                 summary=summary
@@ -144,7 +144,7 @@ class VideoAnalyzer:
             
         except Exception as e:
             logger.error(f"Video analysis failed: {e}")
-            raise RuntimeError(f"Video analysis failed: {str(e)}") from e
+            raise RuntimeError(f"Video analysis failed: {str(e)}")
     
     def _analyze_frames(self, loader) -> Tuple[List[str], List[float]]:
         """
@@ -159,13 +159,12 @@ class VideoAnalyzer:
         frames_analysis = []
         timestamps = []
         
-        for data_package in loader:
+        for data_package in tqdm(loader,desc="Analyzing frames"):
             try:
                 analysis = self._frame_analyzer.analyze(data_package["frame"])
                 frames_analysis.append(analysis)
                 timestamps.append(data_package["timestamp"])
             except Exception as e:
-                # Log the error but continue processing other frames
                 logger.warning(
                     f"Failed to analyze frame at timestamp "
                     f"{data_package.get('timestamp', 'unknown')}: {e}"
@@ -188,6 +187,7 @@ class VideoAnalyzer:
         Returns:
             Summary string
         """
+        logger.info(f"Generating summary for {len(frames_analysis)} frames")
         try:
             return self._summarizer.summarize(frames_analysis, timestamps)
         except Exception as e:
@@ -225,8 +225,9 @@ class VideoAnalyzer:
 
 # Backward compatibility function
 def analyze_video(
-    video: Union[str, bytes, io.BytesIO],
+    video: Union[str, bytes],
     args: PredictionConfig,
+    metadata: Optional[dict] = None,
 ) -> FramesAnalysisResult:
     """
     Legacy function for backward compatibility.
@@ -238,6 +239,22 @@ def analyze_video(
     Returns:
         Tuple of (frames_analysis, timestamps, summary)
     """
+    tmpfile_path = None
+
+    if isinstance(video, str):
+        video = Video(video_path=video,metadata=metadata)
+    elif isinstance(video, bytes):
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
+            tmpfile.write(video)
+            tmpfile_path = tmpfile.name
+            video = Video(video_path=tmpfile_path,metadata=metadata)
+    else:
+        raise ValueError(f"Unsupported video type: {type(video)}")
+
     analyzer = VideoAnalyzer(args)
-    result = analyzer.analyze_video(video)
+    result = analyzer.analyze_video(video,cache_dir=os.environ.get("VIDEO_PREPROCESSED_DIR"))
+    
+    if tmpfile_path:
+        os.remove(tmpfile_path)
+
     return result

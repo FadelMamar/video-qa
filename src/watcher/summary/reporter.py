@@ -10,7 +10,8 @@ from typing import List
 
 import dspy
 
-from ..agent.vlm import ModelConfig, DSPyModelLoader
+from ..analyzer.base import ModelConfig
+from ..analyzer.dspy_analyzer import DSPyModelLoader
 
 logger = logging.getLogger(__name__)
 

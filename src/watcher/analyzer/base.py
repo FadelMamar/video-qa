@@ -1,68 +1,15 @@
 import base64
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import List, Literal, Optional, Union, Dict, Any
 import numpy as np
 import logging
 from PIL import Image
 import io
-from enum import Enum
 
-from ..base import Video
+from ..base import ActivityType, ActivityClassificationResult, ACTIVITY_PROMPTS
 
 logger = logging.getLogger("Analyzer")
-
-class ActivityType(Enum):
-    """Enumeration of recognizable activities"""
-    UNKNOWN = "unknown"
-    NORMAL_WALKING = "normal_walking"
-    RUNNING = "running"
-    FIGHTING = "fighting"
-    GROUP_GATHERING = "group_gathering"
-    MILITIA_BEHAVIOR = "militia_behavior"
-    VEHICLE_DRIVING = "vehicle_driving"
-    VEHICLE_SPEEDING = "vehicle_speeding"
-    VEHICLE_STOPPING = "vehicle_stopping"
-    SUSPICIOUS_BEHAVIOR = "suspicious_behavior"
-    CROWD_FORMATION = "crowd_formation"
-
-ACTIVITY_PROMPTS = {
-    ActivityType.NORMAL_WALKING: "A person walking normally",
-    ActivityType.RUNNING: "A person running or jogging",
-    ActivityType.FIGHTING: "People fighting or engaging in physical conflict",
-    ActivityType.GROUP_GATHERING: "A group of people gathering together",
-    ActivityType.MILITIA_BEHAVIOR: "People in military or militia formation",
-    ActivityType.VEHICLE_DRIVING: "A vehicle or multiple vehicles driving on the road",
-    ActivityType.VEHICLE_SPEEDING: "A vehicle or multiple vehicles driving at high speed",
-    ActivityType.VEHICLE_STOPPING: "A vehicle or multiple vehicles stopping or parked",
-    ActivityType.SUSPICIOUS_BEHAVIOR: "Suspicious or unusual behavior",
-    ActivityType.CROWD_FORMATION: "A crowd forming or moving",
-    ActivityType.UNKNOWN: "Unknown or unclear activity"
-        }
-
-
-@dataclass
-class ActivityClassificationResult:
-    """Data class for activity recognition results"""
-    activity_type: ActivityType
-    confidence: float
-
-@dataclass
-class FramesAnalysisResult:
-    """Container for video analysis results."""
-    video: Video
-    frames_analysis: List[str]
-    timestamps: List[float]
-    summary: str
-    
-    def __post_init__(self):
-        """Validate the analysis result data."""
-        if len(self.frames_analysis) != len(self.timestamps):
-            raise ValueError("Number of frame analyses must match number of timestamps")
-        
-        if not self.frames_analysis:
-            raise ValueError("No frame analysis data provided")
 
 
 class ActivityClassifier(ABC):

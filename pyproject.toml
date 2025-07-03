@@ -18,4 +18,5 @@ dependencies = [
     "tqdm>=4.65.0",
     "blis==0.7.9",
     "numpy>=2.0.2",
+    "fire>=0.7.0",
 ]

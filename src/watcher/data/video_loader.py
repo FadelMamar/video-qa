@@ -124,6 +124,7 @@ def get_video_frames(
     indices = np.arange(0, total_frames, step)
     
     # Apply max_frames limit
+    LOGGER.info(f"max_frames: {max_frames}, total_frames: {total_frames}")
     if max_frames:
         max_frames = min(max_frames, total_frames)
         indices = indices[:max_frames]
@@ -297,7 +298,7 @@ class DataLoading:
         
         for i in range(0, num_frames):
             frame = convert_frame(frames[i])
-            timestamp = timestamps[i]
+            timestamp = timestamps[i].tolist()
 
             data_package = {
                 "timestamp":timestamp,

@@ -5,23 +5,15 @@ from datetime import datetime
 import random
 import json
 import os
-from watcher.analyzer import analyze_video
+from typing import Union
+#from watcher.analyzer import analyze_video
 from watcher.config import PredictionConfig
 from dotenv import load_dotenv
+from watcher.base import FramesAnalysisResult
 
 DOT_ENV = "../.env"
 
-
-
-def main():
-    # Configure page
-    st.set_page_config(
-        page_title="Video Analysis Demo",
-        page_icon="🎬",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
-
+def header():
     # Custom CSS for better styling
     st.markdown(
         """
@@ -68,7 +60,22 @@ def main():
     """,
         unsafe_allow_html=True,
     )
+    
 
+def main():
+    # Configure page
+    st.set_page_config(
+        page_title="Video Analysis Demo",
+        page_icon="🎬",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+
+    load_dotenv(DOT_ENV)
+
+    header()
+
+    
     # Sidebar for controls
     with st.sidebar:
         st.header("🔧 Controls")
@@ -76,28 +83,21 @@ def main():
         # Video upload
         uploaded_video = st.file_uploader(
             "Upload Video File",
-            type=["mp4", "avi", "mov", "mkv", "webm"],
-            help="Supported formats: MP4, AVI, MOV, MKV, WEBM",
+            type=["mp4",],
+            help="Supported formats: MP4"
         )
 
         st.divider()
-
-        # analyze_button_2 = st.button(
-        #     "Recognize activities",
-        #     type="secondary",
-        #     disabled=not uploaded_video,
-        #     use_container_width=True,
-        # )
 
         if uploaded_video:
             st.success("✅ Ready to analyze!")
         else:
             st.warning("⚠️ Please upload a video")
 
-    (tab1,) = st.tabs(
+    (tab1,tab2) = st.tabs(
             [
                 "Video Analysis",
-                # "Search"
+                "Reconnaissance"
             ]
         )
     
@@ -108,17 +108,16 @@ def main():
         with col1:
             # Video display section
             if uploaded_video:
-                st.subheader("📹 Video Preview")
+                st.subheader("📹 Video")
                 st.video(uploaded_video)  
             else:
                 st.info("👆 Please upload a video file using the sidebar to get started")                            
 
         with col2:
             # Quick info panel
-            st.subheader("ℹ️ Video Information")
+            st.subheader("ℹ️ Information")
 
             if uploaded_video:
-                # with st.expander("ℹ️ Video Information"):
                 st.write(f"**Filename:** {uploaded_video.name}")
                 st.write(f"**File size:** {uploaded_video.size / 1024 / 1024:.2f} MB")
                 st.write(f"**File type:** {uploaded_video.type}")
@@ -140,35 +139,30 @@ def main():
             value=5,
             help="Downsampling rate. 5 means we retain 1 frame per 5 seconds.",
             )   
-            temperature = st.number_input(
-                "Temperature",
-                min_value=0.,
-                value=0.7,
-                help="Temperature of VLM",
-            )
-            batch_frames = 1 #st.number_input(
-                # "Batch frames",
-                # min_value=1,
-                # value=1,
-                # help="Number of frames to process in each batch. Higher values may speed up processing but require more memory.",
-            #)
+            temperature = float(os.getenv("TEMPERATURE",0.7))
+            batch_frames = 1 
+            model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B")
+
 
             if analyze_button and uploaded_video:
                 st.subheader("🔍 Analysis Results")
                 with st.spinner("Running..."):
-                    load_dotenv(DOT_ENV)
+                    
                     args=PredictionConfig(sample_freq=sample_freq,
                                         temperature=temperature,
-                                        cache_dir="../.cache",
-                                        model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B"),
+                                        model=model,
                                         batch_frames=batch_frames,
                                         )
                     
-
-                    result = analyze_video(video=uploaded_video,args=args)
-
+                    result = analyze_video_cli(video=uploaded_video.getvalue(), args=args)
                     
-                    metadata = {f"Time: {result.timestamps[i]}s": result.frames_analysis[i] for i in range(len(result.timestamps))}
+                    summary = result.get("summary") if isinstance(result, dict) else None
+                    timestamps = result.get("timestamps") if isinstance(result, dict) else None
+                    frames_analysis = result.get("frames_analysis") if isinstance(result, dict) else None
+                    if timestamps and frames_analysis:
+                        metadata = {f"Time: {timestamps[i]}s": frames_analysis[i] for i in range(len(timestamps))}
+                    else:
+                        metadata = None
 
                 # Detailed results tabs
                 (tab1,) = st.tabs(
@@ -178,10 +172,12 @@ def main():
                 )
 
                 with tab1:
-                    st.markdown("#### Main Findings")
-                    # st.code(analysis, language="text")
-                    st.write(result.summary)
-                    st.write(metadata)
+                    st.markdown("#### Résultats")
+                    if summary:
+                        st.write(summary)
+                    if metadata:
+                        with st.expander("Metadata"):
+                            st.write(metadata)
 
 
     # Footer
@@ -196,5 +192,59 @@ def main():
     )
 
 
+def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None) -> FramesAnalysisResult:
+    import subprocess
+    import json
+    import tempfile
+    from pathlib import Path
+    import streamlit as st
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
+        tmpfile.write(video)
+        video_path = tmpfile.name
+
+    cmd = [
+        "uv", "run", "cli.py", "analyze",
+        video_path,
+        f"--args={vars(args)}", 
+    ]
+    if metadata is not None:
+        cmd += [f"--metadata={json.dumps(metadata)}"]
+
+    cwd = Path(__file__).parent.parent
+    
+
+    # Use Popen for live output
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        shell=True,
+        cwd=cwd,
+        bufsize=1,
+        universal_newlines=True,
+    )
+    
+    with st.expander("Logs"):
+        log_placeholder = st.empty()
+        logs = ""
+        last_line = None
+        for line in process.stdout:
+            logs += line
+            log_placeholder.code(logs)  # Update the Streamlit code block with new logs
+            last_line = line
+
+    process.stdout.close()
+    returncode = process.wait()
+    print("return code",returncode)
+    try:
+        return  json.loads(last_line)
+    except Exception:
+        print(e)
+
+    return  {}
+    
+    
 if __name__ == "__main__":
     main()
