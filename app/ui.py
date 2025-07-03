@@ -5,13 +5,15 @@ from datetime import datetime
 import random
 import json
 import os
-from typing import Union
-#from watcher.analyzer import analyze_video
+from typing import Union,List
+import tempfile
 from watcher.config import PredictionConfig
 from dotenv import load_dotenv
-from watcher.base import FramesAnalysisResult
+from watcher.base import FramesAnalysisResult,Frame
+from watcher.detection.ultralytics_detector import create_yolo_detector
 
 DOT_ENV = "../.env"
+YOLO_MODEL_PATH = r"D:\workspace\repos\video-qa\models\yoloe-11l-seg.pt"
 
 def header():
     # Custom CSS for better styling
@@ -182,6 +184,27 @@ def main():
                         with st.expander("Metadata"):
                             st.write(metadata)
 
+    with tab2:
+        st.subheader("🎯 Tracking")
+
+        with st.form("tracking_form"):
+            tracking_button = st.form_submit_button("Annotate frames",type="primary",use_container_width=True,disabled=not uploaded_video)
+            if tracking_button and uploaded_video:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
+                    tmpfile.write(uploaded_video.getvalue())
+                    video_path = tmpfile.name
+                with st.spinner("Annotating video..."):
+                    annotate_video(video_path,output_path="output.mp4",sliced=False,model_path=YOLO_MODEL_PATH)
+                
+                col1,col2 = st.columns(2)
+                with col1:
+                    st.video("output.mp4")
+                with col2:
+                    with st.spinner("Annotating frames..."):
+                        frames = annotate_frames(video_path,sliced=True,model_path=YOLO_MODEL_PATH,sample_freq=sample_freq)
+                    cols = st.columns(len(frames))
+                    for i,frame in enumerate(frames):
+                        cols[i].image(frame.image)            
 
     # Footer
     st.divider()
@@ -248,7 +271,48 @@ def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activi
         print(e)
 
     return  {}
-    
+
+@st.cache_data(show_spinner="Annotating frames...")
+def annotate_video(video_path: str, output_path: str,sliced:bool=False,model_path:str="yoloe-11s-seg.pt"):
+    detector = create_yolo_detector(
+        model_path=model_path,
+        confidence_threshold=0.3,
+        input_size=(640,640),
+        device="cpu"  # or "cuda" if available
+    )
+
+    detector.inference_video(video_path,output_path=output_path,sliced=sliced)
+
+@st.cache_data(show_spinner="Annotating frames...")
+def annotate_frames(video_path:str,sliced:bool=True,model_path:str="yoloe-11s-seg.pt",sample_freq=5)->List[Frame]:
+    from watcher.data import DataLoading
+    from watcher.base import Video
+    import uuid
+
+    data_loader = DataLoading()
+    video = Video(video_path=video_path)
+    loader = data_loader.get_loader(video,img_as_bytes=False,sample_freq=sample_freq)
+
+    # Create a Frame object (detections is empty before inference)
+    frames = []
+    for data in loader:
+        dummy_frame = Frame(
+            timestamp=data["timestamp"],
+            image=data["frame"],
+            detections=[],
+            parent_video_id=str(uuid.uuid4()),
+        )
+        frames.append(dummy_frame)
+
+    # Create the detector (update model_path as needed)
+    detector = create_yolo_detector(
+        model_path=model_path,
+        confidence_threshold=0.3,
+        device="cpu"  # or "cuda" if available
+    )
+
+    frames = detector.annotate_frames(frames,sliced=sliced)
+    return frames
     
 if __name__ == "__main__":
     main()

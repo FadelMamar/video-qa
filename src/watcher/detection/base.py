@@ -11,7 +11,7 @@ from copy import deepcopy
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Detection")
 
 from ..base import Frame
 

@@ -15,8 +15,6 @@ def run():
     video = Video(video_path=VIDEO_PATH)
     loader = data_loader.get_loader(video,img_as_bytes=False,sample_freq=5)
 
-    images = [next(loader)["frame"] for _ in range(1)]
-
     # Create a Frame object (detections is empty before inference)
     frames = []
     for data in loader:
@@ -57,7 +55,8 @@ def run_video():
         device="cpu"  # or "cuda" if available
     )
 
-    detector.inference_video(VIDEO_PATH,output_path="output.mp4")
+    detector.inference_video(VIDEO_PATH,output_path="output.mp4",sliced=False)
 
 if __name__ == "__main__":
     run_video()
+    #run()

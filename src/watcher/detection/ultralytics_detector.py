@@ -13,11 +13,10 @@ import supervision as sv
 
 import warnings
 
-from .base import DroneObjectDetector
+from .base import DroneObjectDetector,logger
 from ..base import Frame, Detection, ACTIVITY_PROMPTS
 
-# Configure logging
-logger = logging.getLogger(__name__)
+
 
 # Suppress ultralytics warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -73,7 +72,7 @@ class YOLOModel:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
     
-    def _predict(self,source):
+    def _predict(self,source)->Results:
         return self.model.predict(source, 
         verbose=self.verbose, 
         imgsz=max(self.input_size), 
@@ -309,13 +308,32 @@ class YOLODetector(DroneObjectDetector):
             logger.error(f"Error during inference: {e}")
             raise
     
+    def annotate_frames(self,frames: List[Frame],sliced:bool=True) -> List[Frame]:
+        assert isinstance(frames,list), "frames must be a list"
+        try:
+            box_annotator = sv.BoxAnnotator()
+            for frame in frames:
+                if sliced:
+                    detections = self.model._sliced_inference(frame.image,return_sv_detections=True)
+                else:
+                    detections = self.model._predict(frame.image)[0]
+                    detections = sv.Detections.from_ultralytics(detections)
+                annotated_image = box_annotator.annotate(
+                scene=frame.image, detections=detections)
+                frame.image = annotated_image
+            return frames
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(f"Error during inference: {e}")
+            raise
+
     def inference_video(self, video_path: str,output_path: str,sliced:bool=False) -> None:
         """
         Run inference on a video
         """
         box_annotator = sv.BoxAnnotator()
-        #label_annotator = sv.LabelAnnotator()
-        #tracker = sv.ByteTrack()
+        tracker = sv.ByteTrack()
+        trace_annotator = sv.TraceAnnotator()
 
         def callback(image: np.ndarray, _: int) -> np.ndarray:
             if sliced:
@@ -323,20 +341,11 @@ class YOLODetector(DroneObjectDetector):
             else:
                 detections = self.model._predict(image)[0]
                 detections = sv.Detections.from_ultralytics(detections)
-            #detections = tracker.update_with_detections(detections)
-            #trace_annotator = sv.TraceAnnotator()
-            #labels = [
-            #    f"#{tracker_id} {self.label_map[class_id]}"
-            #    for class_id, tracker_id
-            #    in zip(detections.class_id, detections.tracker_id)
-            #]
-
+            detections = tracker.update_with_detections(detections)
             annotated_frame = box_annotator.annotate(
                 image.copy(), detections=detections)
-           # annotated_frame = label_annotator.annotate(
-           #     annotated_frame, detections=detections, labels=labels)
-            #annotated_frame =  trace_annotator.annotate(
-            #    annotated_frame, detections=detections)
+            annotated_frame =  trace_annotator.annotate(
+                annotated_frame, detections=detections)
             return annotated_frame
 
         sv.process_video(
