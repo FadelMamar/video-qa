@@ -11,8 +11,11 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "spyder-kernels==3.0.*",
     "streamlit==1.46.0",
+    "transformers>=4.30.0",
     "ultralytics>=8.0.0",
     "torch==2.0.0",
     "opencv-python>=4.8.0",
     "tqdm>=4.65.0",
+    "blis==0.7.9",
+    "numpy>=2.0.2",
 ]

@@ -5,7 +5,7 @@ from datetime import datetime
 import random
 import json
 import os
-from watcher.synthetizer import analyze_video
+from watcher.analyzer import analyze_video
 from watcher.config import PredictionConfig
 from dotenv import load_dotenv
 
@@ -124,93 +124,65 @@ def main():
                 st.write(f"**File type:** {uploaded_video.type}")
             
 
-            # Analysis Results Section
-            st.divider()
-            st.subheader("🎯 Video Analysis")
-            with st.form("analysis_form"):
-                analyze_button = st.form_submit_button(
-                "Start Analysis",
-                type="primary",
-                disabled=not uploaded_video,
-                use_container_width=True,
+        # Analysis Results Section
+        st.divider()
+        st.subheader("🎯 Video Analysis")
+        with st.form("analysis_form"):
+            analyze_button = st.form_submit_button(
+            "Start Analysis",
+            type="primary",
+            disabled=not uploaded_video,
+            use_container_width=True,
+            )
+            sample_freq = st.number_input(
+            "Sampling frequency",
+            min_value=1,
+            value=5,
+            help="Downsampling rate. 5 means we retain 1 frame per 5 seconds.",
+            )   
+            temperature = st.number_input(
+                "Temperature",
+                min_value=0.,
+                value=0.7,
+                help="Temperature of VLM",
+            )
+            batch_frames = 1 #st.number_input(
+                # "Batch frames",
+                # min_value=1,
+                # value=1,
+                # help="Number of frames to process in each batch. Higher values may speed up processing but require more memory.",
+            #)
+
+            if analyze_button and uploaded_video:
+                st.subheader("🔍 Analysis Results")
+                with st.spinner("Running..."):
+                    load_dotenv(DOT_ENV)
+                    args=PredictionConfig(sample_freq=sample_freq,
+                                        temperature=temperature,
+                                        cache_dir="../.cache",
+                                        model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B"),
+                                        batch_frames=batch_frames,
+                                        )
+                    
+
+                    result = analyze_video(video=uploaded_video,args=args)
+
+                    
+                    metadata = {f"Time: {result.timestamps[i]}s": result.frames_analysis[i] for i in range(len(result.timestamps))}
+
+                # Detailed results tabs
+                (tab1,) = st.tabs(
+                    [
+                        "🎯 Key Insights",
+                    ]
                 )
-                sample_freq = st.number_input(
-                "Sampling frequency",
-                min_value=1,
-                value=5,
-                help="Downsampling rate. 5 means we retain 1 frame per 5 seconds.",
-                )   
-                temperature = st.number_input(
-                    "Temperature",
-                    min_value=0.,
-                    value=0.7,
-                    help="Temperature of VLM",
-                )
-                batch_frames = st.number_input(
-                    "Batch frames",
-                    min_value=1,
-                    value=1,
-                    help="Number of frames to process in each batch. Higher values may speed up processing but require more memory.",
-                )
 
-                if analyze_button and uploaded_video:
-                    st.subheader("🔍 Analysis Results")
-                    with st.spinner("Running..."):
-                        load_dotenv(DOT_ENV)
-                        args=PredictionConfig(video=uploaded_video,
-                                            sample_freq=sample_freq,
-                                            temperature=temperature,
-                                            cache_dir="../.cache",
-                                            model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B"),
-                                            batch_frames=batch_frames,
-                                            )
-                        
+                with tab1:
+                    st.markdown("#### Main Findings")
+                    # st.code(analysis, language="text")
+                    st.write(result.summary)
+                    st.write(metadata)
 
-                        frames_analysis, timestamps, analysis = analyze_video(args=args)
-
-                        # time.sleep(2)  # Simulate processing time
-                        # analysis = "There is a car driving on the road"
-                        # frames_analysis = ["Car detected", "No car", "Car detected"]
-                        # timestamps = [0, 5, 10]  # Simulated timestamps
-
-                        metadata = {f"Time: {timestamps[i]}s": frames_analysis[i] for i in range(len(timestamps))}
-
-                    # Detailed results tabs
-                    (tab1,) = st.tabs(
-                        [
-                            "🎯 Key Insights",
-                        ]
-                    )
-
-                    with tab1:
-                        st.markdown("#### Main Findings")
-                        # st.code(analysis, language="text")
-                        st.write(analysis)
-                        st.write(metadata)
-
-                        # Download button for results
-                        # st.download_button(
-                        #     label="📥 Download Analysis Results",
-                        #     data=analysis,
-                        #     file_name=f"analysis_{uploaded_video.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        #     mime="text/plain",
-                        # )
-
-                    # st.markdown("</div>", unsafe_allow_html=True)
-
-    # with tab2:
-    #     st.divider()
-        
-    #     if analyze_button_2 and uploaded_video:
-    #         st.subheader("🏃 Activity Recognition")        
-    #         with st.spinner("Analyzing activities..."):
-    #             time.sleep(2)
-
-    #         # Simulated activity recognition results
-    #         activities = ["vehicles driving", "people walking", "animals running"]
-    #         recog_activities = {f"Time: {random.randint(i,(i+10)**2)}s": activities[i] for i in range(len(activities))}
-
-    #         st.write(recog_activities)
 
     # Footer
     st.divider()

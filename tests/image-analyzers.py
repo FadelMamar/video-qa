@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 
 from watcher.config import PredictionConfig
 from watcher.utils import frame_loader
-from watcher.vlm import DspyAnalyzer, Summarizer
+from watcher.agent.vlm import DspyAnalyzer, Summarizer
 
 
 if __name__ == "__main__":

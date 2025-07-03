@@ -9,7 +9,10 @@ from pathlib import Path
 import logging
 from decord import VideoReader, cpu
 from tqdm import tqdm
+
+from ..base import Video
 from ..config import PredictionConfig
+
 
 # Set up logging
 LOGGER = logging.getLogger(__name__)
@@ -219,141 +222,44 @@ class DataLoading:
     def __init__(
         self,
         tile_size: int = 800,
+        load_patches: bool = False,
         overlap_ratio: float = 0.2,
         batch_size: int = 1,
         max_frames: Optional[int] = None,
     ):
         
         self.tile_size = tile_size
+        self.load_patches = load_patches
         self.overlap_ratio = overlap_ratio
         self.stride = int((1 - self.overlap_ratio) * self.tile_size)
         self.batch_size = batch_size
         self.max_frames = max_frames
             
     
-    def load(self,video: Union[str, bytes, BytesIO],
+    def get_loader(self,video: Video,
             cache_dir: Optional[str] = None,
             sample_freq: int = 1,
             img_as_bytes: bool = True,
-            batch_size: int = 1,
             max_frames: Optional[int] = None,
         ):
         """Load and process video frames"""
-        frame_loader = self.frame_generator(
+        
+        return self.frame_generator(
             video=video,
             cache_dir=cache_dir,
             sample_freq=sample_freq,
             img_as_bytes=img_as_bytes,
-            batch_size=batch_size,
             max_frames=max_frames,
         )
-        
-        while True:
-            data_package = self._load_once(frame_loader)
-            if data_package == "DONE":
-                break
-            yield data_package
-        
-    
-    def _get_patches(self, image: np.ndarray) -> np.ndarray:
-        """Extract patches from image using numpy operations (no torch dependency)"""
-        if image.ndim == 2:
-            # Add channel dimension for grayscale
-            image = image[..., np.newaxis]
-            squeeze_output = True
-        else:
-            squeeze_output = False
-        
-        H, W, C = image.shape
-        
-        # Calculate number of patches
-        h_patches = (H - self.tile_size) // self.stride + 1
-        w_patches = (W - self.tile_size) // self.stride + 1
-        
-        patches = []
-        
-        for i in range(h_patches):
-            for j in range(w_patches):
-                h_start = i * self.stride
-                w_start = j * self.stride
-                h_end = h_start + self.tile_size
-                w_end = w_start + self.tile_size
-                
-                patch = image[h_start:h_end, w_start:w_end, :]
-                patches.append(patch)
-        
-        patches = np.array(patches)
-        
-        if squeeze_output:
-            patches = patches.squeeze(axis=-1)
-        
-        return patches
-    
-    def _get_patches_from_frame(
-        self, image: np.ndarray, patch_size: int
-    ) -> tuple[np.ndarray, dict]:
-        """Extract patches from the frame
-
-        Args:
-            image (np.ndarray): frame data
-            patch_size (int): patch size
-
-        Returns:
-            tuple[np.ndarray, dict]: batch of patches, offset information
-        """
-        height, width = image.shape[:2]
-        
-        if width <= patch_size or height <= patch_size:
-            LOGGER.debug("Image is too small for patch extraction")
-            offset_info = {
-                "y_offset": [0],
-                "x_offset": [0],
-                "y_end": [height],
-                "x_end": [width],
-            }
-            return image[np.newaxis, ...], offset_info
-
-        patches = self._get_patches(image)
-        
-        # Calculate offset information
-        h_patches = (height - self.tile_size) // self.stride + 1
-        w_patches = (width - self.tile_size) // self.stride + 1
-        
-        y_offsets = []
-        x_offsets = []
-        y_ends = []
-        x_ends = []
-        
-        for i in range(h_patches):
-            for j in range(w_patches):
-                y_offset = i * self.stride
-                x_offset = j * self.stride
-                y_end = y_offset + patch_size
-                x_end = x_offset + patch_size
-                
-                y_offsets.append(y_offset)
-                x_offsets.append(x_offset)
-                y_ends.append(y_end)
-                x_ends.append(x_end)
-
-        offset_info = {
-            "y_offset": y_offsets,
-            "x_offset": x_offsets,
-            "y_end": y_ends,
-            "x_end": x_ends,
-        }
-
-        return patches, offset_info
-    
+            
     def frame_generator(
         self,
-        video: Union[str, bytes, BytesIO],
+        video: Video,
         cache_dir: Optional[str],
         sample_freq: int = 1,
         img_as_bytes: bool = True,
-        batch_size: int = 1,
         max_frames: Optional[int] = None,
-    ) -> Iterator[Tuple[list, np.ndarray]]:
+    ) -> Iterator[dict]:
         """
         Generator for loading video frames in batches with improved memory management.
         
@@ -366,63 +272,43 @@ class DataLoading:
             max_frames: Maximum number of frames to load
         
         Yields:
-            Tuple of (frame_batch, timestamps)
+            Dictionary with timestamp, data, and offset_info
         """
-        try:
-            frames, timestamps = get_video_frames(
-                video=video,
-                cache_dir=cache_dir,
-                sample_freq=sample_freq,
-                max_frames=max_frames,
-            )
-            
-            # Setup conversion function
-            if img_as_bytes:
-                def convert_to_bytes(frame: np.ndarray) -> bytes:
-                    return numpy_to_bytes(frame, save_as="jpeg")
-                convert_frame = convert_to_bytes
-            else:
-                def convert_to_array(frame: np.ndarray) -> np.ndarray:
-                    return frame
-                convert_frame = convert_to_array
-            
-            # Yield frames in batches
-            num_frames = len(frames)
-            
-            for i in range(0, num_frames, batch_size):
-                end_idx = min(i + batch_size, num_frames)
-                frame_batch = [convert_frame(frames[j]) for j in range(i, end_idx)]
-                batch_timestamps = timestamps[i:end_idx]
-                
-                yield frame_batch, batch_timestamps
-                
-        except Exception as e:
-            LOGGER.error(f"Error in frame_loader: {e}")
-            raise
-    
-    def _load_once(self,frame_loader:Iterator[Tuple[list, np.ndarray]]) -> dict:
-        """Load and process one frame"""
-        try:
-            frame, timestamp = next(frame_loader)
 
-            # Extract patches from frame
-            patches, offset_info = self._get_patches_from_frame(image=frame, 
-            patch_size=self.tile_size)
-                    
+        frames, timestamps = get_video_frames(
+            video=video.video_path,
+            cache_dir=cache_dir,
+            sample_freq=sample_freq,
+            max_frames=max_frames,
+        )
+        
+        # Setup conversion function
+        if img_as_bytes:
+            def convert_to_bytes(frame: np.ndarray) -> bytes:
+                return numpy_to_bytes(frame, save_as="jpeg")
+            convert_frame = convert_to_bytes
+        else:
+            def convert_to_array(frame: np.ndarray) -> np.ndarray:
+                return frame
+            convert_frame = convert_to_array
+
+        # Yield frames in batches
+        num_frames = len(frames)
+        
+        for i in range(0, num_frames):
+            frame = convert_frame(frames[i])
+            timestamp = timestamps[i]
+
             data_package = {
                 "timestamp":timestamp,
-                "data": patches,
-                "offset_info": offset_info,
+                "frame": frame,
+                "offset_info": None,
             }
-            return data_package
-
-        except StopIteration:
-            return "DONE"
+            
+            yield data_package
+                
         
-        except Exception as e:
-            LOGGER.error(f"Error in _load_once: {e}")
-            raise
-        
+            
 
     
    

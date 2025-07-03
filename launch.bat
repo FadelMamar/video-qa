@@ -2,25 +2,9 @@ call cd D:\workspace\repos\video-qa
 
 call .\.venv\Scripts\activate
 
-@REM @REM load env variables from .env file
-@REM if exist .env (
-@REM     echo Loading .env file...
-@REM     for /f "usebackq tokens=1,2 delims==" %%a in (".env") do (
-@REM         REM Skip lines starting with # (comments)
-@REM         echo %%a | findstr /r "^#" >nul
-@REM         if errorlevel 1 (
-@REM             REM Skip empty lines
-@REM             if not "%%a"=="" (
-@REM                 set "%%a=%%b"
-@REM                 @REM echo Set %%a=%%b
-@REM             )
-@REM         )
-@REM     )
-@REM ) else (
-@REM     echo .env file not found
-@REM )
+call load_env.bat
 
-start streamlit run src/ui.py --server.port 8501
+start streamlit run app/ui.py --server.port 8501
 
 @REM --n-predict 512 --host 0.0.0.0
 
