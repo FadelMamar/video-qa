@@ -1,19 +1,20 @@
 import os
 import time
 import logging
+import traceback
 from typing import List, Dict, Tuple, Optional, Union, Any
 import numpy as np
 from pathlib import Path
 import cv2
 import torch
-from ultralytics import YOLO
+from ultralytics import YOLOE
 from ultralytics.engine.results import Results, Boxes
 import supervision as sv
 
 import warnings
 
 from .base import DroneObjectDetector
-from ..base import Frame, Detection
+from ..base import Frame, Detection, ACTIVITY_PROMPTS
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class YOLOModel:
         input_size: Tuple[int, int] = (640, 640), 
         confidence_threshold: float = 0.3,
         batch_size: int = 8,
+        verbose: bool = False,
         max_det: int = 300,):
         """
         Initialize YOLO model
@@ -52,48 +54,63 @@ class YOLOModel:
         self.max_det = max_det
         self.batch_size = batch_size
         self.model = None
-        self._load_model()
         self.label_map = {}
+        self.verbose = verbose
+        # load model and labelmap
+        self._load_model()
+        
     
     def _load_model(self):
         """Load the YOLO model"""
         try:
-            self.model = YOLO(self.model_path)
-            logger.info(f"Loaded YOLO model from {self.model_path}")
+            self.model = YOLOE(self.model_path)
+            names = list(ACTIVITY_PROMPTS.values())
+            self.model.set_classes(names, self.model.get_text_pe(names))
             self.label_map = self.model.names
+            self.model.to(self.device)
+            logger.info(f"Loaded YOLO model from {self.model_path}")
         except Exception as e:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
     
-    def _sliced_inference(self, image: np.ndarray) -> sv.Detections:
-        """
-        Run inference on a list of frames in a batched manner.
-        """
-        box_annotator = sv.BoundingBoxAnnotator()
-        label_annotator = sv.LabelAnnotator()
-
-        def callback(image: np.ndarray) -> sv.Detections:
-            result = self.model(image)[0]
-            detections = sv.Detections.from_ultralytics(result)
-            annotated_image = box_annotator.annotate(image.copy(), detections=detections)
-            annotated_image = label_annotator.annotate(annotated_image, detections=detections)
-            return annotated_image
-        
-        slicer = sv.InferenceSlicer(callback = callback)
-        detections = slicer(image)
-        output = dict(bbox=detections.xyxy,
-                      label=detections.class_id,
-                      confidence=detections.confidence)
-        return output
-    
-    def _inference(self, image: np.ndarray) -> sv.Detections:
-        # Run inference
-        results = self.model(image, 
-        verbose=False, 
+    def _predict(self,source):
+        return self.model.predict(source, 
+        verbose=self.verbose, 
         imgsz=max(self.input_size), 
         conf=self.confidence_threshold, 
         max_det=self.max_det, 
         device=self.device)
+    
+    def _sliced_inference(self, image: np.ndarray,iou_threshold=0.5,thread_workers:int=1,return_sv_detections:bool=False) -> dict:
+        """
+        Run inference on a list of frames in a batched manner.
+        """
+        #box_annotator = sv.BoxAnnotator()
+        #label_annotator = sv.LabelAnnotator()
+
+        def callback(image: np.ndarray) -> sv.Detections:
+            result = self._predict(image)[0]
+            return sv.Detections.from_ultralytics(result)
+        
+        slicer = sv.InferenceSlicer(callback = callback,slice_wh=self.input_size,
+                                    iou_threshold=iou_threshold,
+                                    thread_workers=thread_workers,
+                                    overlap_ratio_wh=None,
+                                    overlap_wh=(100,100)
+                                    )
+        detections = slicer(image)
+        #annotated_image = box_annotator.annotate(image.copy(), detections=detections)
+        #annotated_image = label_annotator.annotate(annotated_image, detections=detections)
+        output = dict(bbox=detections.xyxy,
+                      label=detections.class_id,
+                      confidence=detections.confidence)
+        if return_sv_detections:
+            return detections
+        return output
+    
+    def _inference(self, image: np.ndarray) -> dict:
+        # Run inference
+        results = self._predict(image)
 
         detections = sv.Detections.from_ultralytics(results)
         output = dict(bbox=detections.xyxy,
@@ -170,36 +187,7 @@ class YOLOModel:
         
         return detections
     
-    def inference_video(self, video_path: str,output_path: str) -> List[Frame]:
-        """
-        Run inference on a video
-        """
-        box_annotator = sv.BoundingBoxAnnotator()
-        label_annotator = sv.LabelAnnotator()
-        tracker = sv.ByteTrack()
-
-        def callback(frame: np.ndarray, _: int) -> np.ndarray:
-            results = self.model(frame)[0]
-            detections = sv.Detections.from_ultralytics(results)
-            detections = tracker.update_with_detections(detections)
-            trace_annotator = sv.TraceAnnotator()
-            labels = [
-                f"#{tracker_id} {results.names[class_id]}"
-                for class_id, tracker_id
-                in zip(detections.class_id, detections.tracker_id)
-            ]
-            annotated_frame = box_annotator.annotate(
-                frame.copy(), detections=detections)
-            annotated_frame = label_annotator.annotate(
-                annotated_frame, detections=detections, labels=labels)
-            return trace_annotator.annotate(
-                annotated_frame, detections=detections)
-
-        sv.process_video(
-            source_path=video_path,
-            target_path=output_path
-            callback=callback
-        )
+    
 
 class YOLODetector(DroneObjectDetector):
     """
@@ -218,7 +206,6 @@ class YOLODetector(DroneObjectDetector):
         batch_size: int = 8,
         input_size: Tuple[int, int] = (640, 640),
         label_map: Optional[Dict[int, str]] = None,
-        model_type: str = "yolo8",  # yolo8, yolo5, etc.
         max_det: int = 300,  # Maximum number of detections per image
     ):
         """
@@ -238,7 +225,6 @@ class YOLODetector(DroneObjectDetector):
         self.confidence_threshold = confidence_threshold
         self.batch_size = batch_size
         self.input_size = input_size
-        self.model_type = model_type
         self.max_det = max_det
         
         # Set device
@@ -246,41 +232,15 @@ class YOLODetector(DroneObjectDetector):
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         else:
             self.device = device
+        
+        self.model = self._load_model(model_path)
+        self.label_map = self.model.label_map
             
         logger.info(f"Using device: {self.device}")
-        
-        # Set label map
-        if label_map is None:
-            # Default COCO classes for drone surveillance
-            self.label_map = {
-                0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'airplane',
-                5: 'bus', 6: 'train', 7: 'truck', 8: 'boat', 9: 'traffic light',
-                10: 'fire hydrant', 11: 'stop sign', 12: 'parking meter', 13: 'bench',
-                14: 'bird', 15: 'cat', 16: 'dog', 17: 'horse', 18: 'sheep', 19: 'cow',
-                20: 'elephant', 21: 'bear', 22: 'zebra', 23: 'giraffe', 24: 'backpack',
-                25: 'umbrella', 26: 'handbag', 27: 'tie', 28: 'suitcase', 29: 'frisbee',
-                30: 'skis', 31: 'snowboard', 32: 'sports ball', 33: 'kite', 34: 'baseball bat',
-                35: 'baseball glove', 36: 'skateboard', 37: 'surfboard', 38: 'tennis racket',
-                39: 'bottle', 40: 'wine glass', 41: 'cup', 42: 'fork', 43: 'knife',
-                44: 'spoon', 45: 'bowl', 46: 'banana', 47: 'apple', 48: 'sandwich',
-                49: 'orange', 50: 'broccoli', 51: 'carrot', 52: 'hot dog', 53: 'pizza',
-                54: 'donut', 55: 'cake', 56: 'chair', 57: 'couch', 58: 'potted plant',
-                59: 'bed', 60: 'dining table', 61: 'toilet', 62: 'tv', 63: 'laptop',
-                64: 'mouse', 65: 'remote', 66: 'keyboard', 67: 'cell phone', 68: 'microwave',
-                69: 'oven', 70: 'toaster', 71: 'sink', 72: 'refrigerator', 73: 'book',
-                74: 'clock', 75: 'vase', 76: 'scissors', 77: 'teddy bear', 78: 'hair drier',
-                79: 'toothbrush'
-            }
-        else:
-            self.label_map = label_map
-        
+
         # Performance tracking
-        self.total_frames_processed = 0
-        self.total_processing_time = 0.0
-        
-        # Initialize model
-        self.model = self._load_model(model_path)
-    
+        self.reset_stats()
+
     def _load_model(self, model_path: str) -> YOLOModel:
         """
         Load YOLO model
@@ -292,10 +252,7 @@ class YOLODetector(DroneObjectDetector):
             YOLOModel instance
         """
         try:
-            # Validate model path
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file not found: {model_path}")
-            
+            # Validate model path            
             # Create YOLO model wrapper
             model = YOLOModel(model_path, device=self.device, input_size=self.input_size, 
             confidence_threshold=self.confidence_threshold, 
@@ -321,8 +278,7 @@ class YOLODetector(DroneObjectDetector):
         # YOLO handles preprocessing internally, so we just return the frames
         # The model will handle resizing, normalization, etc.
         return frames
-    
-        
+     
     def get_performance_stats(self) -> Dict[str, Any]:
         """
         Get performance statistics
@@ -343,6 +299,52 @@ class YOLODetector(DroneObjectDetector):
             "confidence_threshold": self.confidence_threshold
         }
     
+    def inference(self,frames: List[Frame],sliced:bool=False):
+        assert isinstance(frames,list), "frames must be a list"
+        try:
+            detections = self.model(frames,sliced=sliced)
+            return detections
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(f"Error during inference: {e}")
+            raise
+    
+    def inference_video(self, video_path: str,output_path: str,sliced:bool=False) -> None:
+        """
+        Run inference on a video
+        """
+        box_annotator = sv.BoxAnnotator()
+        #label_annotator = sv.LabelAnnotator()
+        #tracker = sv.ByteTrack()
+
+        def callback(image: np.ndarray, _: int) -> np.ndarray:
+            if sliced:
+                detections = self.model._sliced_inference(image,return_sv_detections=True)
+            else:
+                detections = self.model._predict(image)[0]
+                detections = sv.Detections.from_ultralytics(detections)
+            #detections = tracker.update_with_detections(detections)
+            #trace_annotator = sv.TraceAnnotator()
+            #labels = [
+            #    f"#{tracker_id} {self.label_map[class_id]}"
+            #    for class_id, tracker_id
+            #    in zip(detections.class_id, detections.tracker_id)
+            #]
+
+            annotated_frame = box_annotator.annotate(
+                image.copy(), detections=detections)
+           # annotated_frame = label_annotator.annotate(
+           #     annotated_frame, detections=detections, labels=labels)
+            #annotated_frame =  trace_annotator.annotate(
+            #    annotated_frame, detections=detections)
+            return annotated_frame
+
+        sv.process_video(
+            source_path=video_path,
+            target_path=output_path,
+            callback=callback
+        )
+
     def reset_stats(self):
         """Reset performance statistics"""
         self.total_frames_processed = 0

@@ -18,12 +18,10 @@ class Detection:
 @dataclass
 class Frame:
     """Data class to store frame results"""
-    frame_id: int
-    timestamp: float
     image: np.ndarray
-    detections: List[Detection]
-    parent_video_id: str
-    index_in_video: int
+    timestamp: float = 0.0
+    detections: Optional[List[Detection]] = None
+    parent_video_id: str = ""
 
 @dataclass
 class FramesAnalysisResult:
