@@ -176,8 +176,8 @@ def main():
             
             temperature = float(os.getenv("TEMPERATURE",0.7))
             batch_frames = 1 
-            model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B")
-
+            vlm_model=os.getenv("VLM_MODEL","ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m")
+            #llm_model=os.getenv("LLM_MODEL","ggml-org/Qwen3-1.7B-GGUF:q4_k_m")
 
             if analyze_button and (uploaded_video or video_path):
                 st.subheader("🔍 Analysis Results")
@@ -185,7 +185,8 @@ def main():
                     
                     args=PredictionConfig(sample_freq=sample_freq,
                                         temperature=temperature,
-                                        vlm_model=model,
+                                        vlm_model=vlm_model,
+                                        llm_model=vlm_model,
                                         batch_frames=batch_frames,
                                         )
                     if uploaded_video:
@@ -262,7 +263,7 @@ def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activi
         video_path = tmpfile.name
 
     cmd = [
-        "uv", "run", "cli.py", "analyze",
+        "cli.bat", "analyze",
         video_path,
         f"--args={vars(args)}", 
         f"--activity_analysis={activity_analysis}"
@@ -355,8 +356,6 @@ def launch_vlm_endpoint(model_name: str, port: int = 8000, ctx_size: int = 20000
     import subprocess
     from pathlib import Path
     import os
-
-    load_dotenv(DOT_ENV)
 
     cwd = Path(__file__).resolve().parent.parent
 

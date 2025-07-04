@@ -15,7 +15,7 @@ def analyze(video: str, args: dict, metadata: Optional[dict] = None,activity_ana
     return json.dumps(vars(result))
 
 
-def launch_vlm(llama_server_path: str=None,model_name: str=None,port: int = 8000,ctx_size: int = 20000,load_env: bool = False):
+def launch_vlm(llama_server_path: str=None,model_name: str=None,port: int = 8000,ctx_size: int = 20000,load_env: bool = True):
     
     
     # Path to the batch file

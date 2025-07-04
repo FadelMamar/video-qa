@@ -14,6 +14,10 @@ from typing import Optional, Union, Sequence
 class PredictionConfig:
 
     vlm_model: Optional[str] = "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m"
+    llm_model: Optional[str] = "ggml-org/Qwen3-1.7B-GGUF:q4_k_m"
+    vlm_api_base: Optional[str] = None
+    llm_api_base: Optional[str] = None
+    api_key: Optional[str] = None
     temperature: float = 0.7
     prompting_mode:str="basic"  # Options: "basic", "cot"
 

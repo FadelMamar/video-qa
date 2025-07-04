@@ -31,6 +31,11 @@ class VideoSummarySignature(dspy.Signature):
         desc="Comprehensive summary and analysis of all activities and events"
     )
 
+class TranslatorSignature(dspy.Signature):
+    """Translate the text from english to french.
+    """
+    text_english: str = dspy.InputField(desc="Text to translate")
+    text_french: str = dspy.OutputField(desc="Translated text")
 
 class VideoSummarizer:
     """
@@ -48,8 +53,17 @@ class VideoSummarizer:
             model_config: Configuration for the VLM model
         """
         self.model_config = model_config
-        self._lm = DSPyModelLoader.load_model(model_config)
+        self._llm = DSPyModelLoader.load_llm_model(model_config)
         self._summarizer = dspy.ChainOfThought(VideoSummarySignature)
+        self._translator = dspy.ChainOfThought(TranslatorSignature)
+    
+    def translate(self,text:str) -> str:
+        """
+        Translate the text to the target language.
+        """
+        with dspy.context(lm=self._llm):
+            response = self._translator(text_english=text)
+        return response.text_french
     
     def summarize(
         self, 
@@ -80,12 +94,13 @@ class VideoSummarizer:
 
             descriptions = [f"{frame_analyses[i]} at {timestamps[i]:.3f}s" for i in range(len(frame_analyses))]
             descriptions = "\n".join(descriptions)
-            with dspy.context(lm=self._lm):
+            with dspy.context(lm=self._llm):
                 response = self._summarizer(
                     frames_description=descriptions, 
                 )
-            
-            return response.summary
+            summary = response.summary
+            summary = self.translate(summary)
+            return summary
             
         except Exception as e:
             logger.error(f"Video summarization failed: {e}")

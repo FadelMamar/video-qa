@@ -117,23 +117,31 @@ class ModelConfig:
     
     def __init__(
         self,
-        model_name: str,
+        vlm_model_name: str,
+        llm_model_name: Optional[str] = None,
         temperature: float = 0.7,
         model_type: Literal["chat", "text"] = "chat",
         cache: bool = True,
-        api_base: Optional[str] = None,
+        llm_api_base: Optional[str] = None,
+        vlm_api_base: Optional[str] = None,
         api_key: Optional[str] = None,
     ):
-        self.model_name = model_name
+        self.vlm_model_name = vlm_model_name
+        self.llm_model_name = llm_model_name
         self.temperature = temperature
         self.model_type = model_type
         self.cache = cache
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "sk-no-key-required")
-        self.api_base = self.load_api_base(api_base)
-        
+        self.vlm_api_base = self.load_api_base(vlm_api_base,"vlm")
+        if self.llm_model_name:
+            self.llm_api_base = self.load_api_base(llm_api_base,"llm")
+        else:
+            self.llm_api_base = self.vlm_api_base
     
-    def load_api_base(self,api_base: Optional[str] = None) -> str:
-        port = os.environ.get('PORT')
+
+    def load_api_base(self,api_base: Optional[str] = None,name: str = "llm") -> str:
+        assert name in ["llm", "vlm"], "name must be 'llm' or 'vlm'"
+        port = os.environ.get(f'{name.upper()}_PORT')
         host = os.environ.get('HOST')
         if api_base is not None:
             return api_base
@@ -142,19 +150,22 @@ class ModelConfig:
         else:
             raise ValueError("HOST and PORT must be set in environment variables or 'api_base' should be provided as an argument")
     
+    def validate_model_name(self,name: str) -> str:
+        if name.startswith("openai/"):
+            pass
+        elif name.startswith("ggml-org/"):
+            name = "openai/" + name
+        else:
+            raise ValueError(f"Only OpenAI or ggml-org compatible endpoints are supported. Received: {name}")
+        
+        return name
+    
     def validate(self) -> None:
         """Validate the model configuration."""
-        if not self.model_name:
-            raise ValueError("Model name must be specified")
+        self.llm_model_name = self.validate_model_name(self.llm_model_name)
+        self.vlm_model_name = self.validate_model_name(self.vlm_model_name)
         
-        if not self.model_name.startswith("openai/"):
-            pass
-        if self.model_name.startswith("ggml-org/"):
-            self.model_name = "openai/" + self.model_name
-        else:
-            raise ValueError(f"Only OpenAI or ggml-org compatible endpoints are supported. Received: {self.model_name}")
-        
-        if not (0 <= self.temperature <= 2):
+        if not (0 <= self.temperature <= 1):
             raise ValueError("Temperature must be between 0 and 2")
         
         if self.model_type not in ["chat", "text"]:

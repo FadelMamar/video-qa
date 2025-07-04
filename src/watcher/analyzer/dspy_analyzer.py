@@ -63,7 +63,7 @@ class DSPyModelLoader:
     """Utility class for loading and configuring DSPy models."""
     
     @staticmethod
-    def load_model(config: ModelConfig) -> dspy.LM:
+    def load_vlm_model(config: ModelConfig) -> dspy.LM:
         """
         Load a DSPy language model with the given configuration.
         
@@ -76,13 +76,36 @@ class DSPyModelLoader:
         config.validate()
         
         return dspy.LM(
-            config.model_name,
+            config.vlm_model_name,
             api_key=config.api_key,
             temperature=config.temperature,
-            api_base=config.api_base,
+            api_base=config.vlm_api_base,
             model_type=config.model_type,
             cache=config.cache,
         )
+    
+    @staticmethod
+    def load_llm_model(config: ModelConfig) -> dspy.LM:
+        """
+        Load a DSPy language model with the given configuration.
+        
+        Args:
+            config: Model configuration
+            
+        Returns:
+            Configured DSPy language model
+        """
+        config.validate()
+        
+        return dspy.LM(
+            config.llm_model_name,
+            api_key=config.api_key,
+            temperature=config.temperature,
+            api_base=config.llm_api_base,
+            model_type=config.model_type,
+            cache=config.cache,
+        )
+
 
 
 class DSPyFrameAnalyzer(BaseAnalyzer):
@@ -117,7 +140,7 @@ class DSPyFrameAnalyzer(BaseAnalyzer):
         self.prompting_mode = prompting_mode
         
         # Initialize DSPy components
-        self._lm = DSPyModelLoader.load_model(model_config)
+        self._vlm = DSPyModelLoader.load_vlm_model(model_config)
         self._predictor = self._create_predictor()
         self._activity_predictor = self._create_activity_predictor()
     
@@ -153,7 +176,7 @@ class DSPyFrameAnalyzer(BaseAnalyzer):
         dspy_images = [dspy.Image.from_file(img) for img in image_list]
         
         # Run analysis
-        with dspy.context(lm=self._lm):
+        with dspy.context(lm=self._vlm):
             response = self._predictor(images=dspy_images)
         
         return response.analysis
@@ -187,7 +210,7 @@ class DSPyFrameAnalyzer(BaseAnalyzer):
             context_str = "no additional context"
         
         # Run activity analysis
-        with dspy.context(lm=self._lm):
+        with dspy.context(lm=self._vlm):
             response = self._activity_predictor(
                 images=dspy_images,
                 list_of_activities=LIST_OF_ACTIVITIES,
@@ -196,34 +219,4 @@ class DSPyFrameAnalyzer(BaseAnalyzer):
         
         return response.detected_activity, response.confidence_score
     
-    
-
-
-def load_dspy_model(
-    model: str, 
-    temperature: float, 
-    model_type: Literal["chat", "text"] = "chat", 
-    cache: bool = True
-) -> dspy.LM:
-    """
-    Legacy function for loading DSPy models.
-    
-    Args:
-        model: Model name
-        temperature: Sampling temperature
-        model_type: Type of model
-        cache: Whether to cache results
-        
-    Returns:
-        Configured DSPy language model
-    """
-    config = ModelConfig(
-        model_name=model,
-        temperature=temperature,
-        model_type=model_type,
-        cache=cache
-    )
-    return DSPyModelLoader.load_model(config)
-
-
 

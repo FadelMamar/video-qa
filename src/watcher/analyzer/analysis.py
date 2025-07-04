@@ -74,10 +74,14 @@ class VideoAnalyzer:
         """Create model configuration from prediction config."""
         assert self.config.vlm_model is not None, "Model should be validated by _validate_config"
         return ModelConfig(
-            model_name=self.config.vlm_model,
+            vlm_model_name=self.config.vlm_model,
+            llm_model_name=self.config.llm_model,
             temperature=self.config.temperature,
             model_type="chat",
-            cache=True
+            cache=True,
+            vlm_api_base=self.config.vlm_api_base,
+            llm_api_base=self.config.llm_api_base,
+            api_key=self.config.api_key
         )
     
     def _create_frame_analyzer(self) -> BaseAnalyzer:
