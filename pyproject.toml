@@ -23,4 +23,5 @@ dependencies = [
     "supervision>=0.25.1",
     "accelerate>=1.8.1",
     "bitsandbytes>=0.46.1",
+    "open-clip-torch>=2.32.0",
 ]

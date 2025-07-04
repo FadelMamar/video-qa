@@ -21,6 +21,7 @@ from pathlib import Path
 from io import BytesIO
 
 from transformers import pipeline
+import open_clip
 
 from .base import ActivityClassifier, ActivityClassificationResult, logger
 from ..base import ActivityType
@@ -36,7 +37,7 @@ class CLIPClassifier(ActivityClassifier):
     
     def __init__(
         self,
-        model_path: str = "openai/clip-vit-base-patch32",
+        model_path: str = "google/siglip2-base-patch16-224",
         device: str = "cpu",
         input_size: Tuple[int, int] = (224, 224),
     ):
@@ -177,12 +178,88 @@ class CLIPClassifier(ActivityClassifier):
             frame_results.append(result)
         
         return frame_results
+
+
+class RemoteCLIPClassifier(CLIPClassifier):
+    """
+    Remote CLIP classifier
     
-            
+    Uses a remote CLIP model to perform zero-shot activity classification.
+    """
+    def __init__(
+        self,
+        model_path: str,
+        device: str = "cpu",
+        input_size: tuple = (224, 224),
+    ):
+        self.input_size = input_size
+        self.model = None
+        self.tokenizer = None
+        self._preprocess = None
+        super().__init__(model_path=model_path, device=device, input_size=input_size)
+    
+    @staticmethod
+    def download_model(model_name: str="ViT-B-32",save_dir: str="models") -> str:
+        """
+        Download the CLIP model from Hugging Face
+        """
+        from huggingface_hub import hf_hub_download
+        assert model_name in ["ViT-B-32", "ViT-L-14",'RN50'], "Only ViT-B-32, ViT-L-14 and RN50 are supported"
+        checkpoint_path = hf_hub_download("chendelong/RemoteCLIP", f"RemoteCLIP-{model_name}.pt", cache_dir=save_dir)
+        return checkpoint_path
+   
+    def load_model(self, model_path: str) -> None:
+        """
+        Load the CLIP model from Hugging Face
+        """
+        model_name = Path(model_path).stem.split("RemoteCLIP-")[-1]
+        self.model, _, self._preprocess = open_clip.create_model_and_transforms(model_name)
+        self.tokenizer = open_clip.get_tokenizer(model_name)
+        ckpt = torch.load(model_path, map_location="cpu")
+        self.model.load_state_dict(ckpt)
+        self.model.eval()
+        logger.info(f"Initialized RemoteCLIPClassifier with model: {model_name} {self.device}")
+    
+    def preprocess(self, images: List[bytes]) -> List[torch.Tensor]:
+        """
+        Preprocess images for CLIP input
+        """
+        images = super().preprocess(images)
+        images = [self._preprocess(image).unsqueeze(0) for image in images]
+        return images
+    
+    def _classify_batch(self, images: List[torch.Tensor]) -> tuple:
+        """
+        Classify a batch of images using remote CLIP
+        """
+        # Prepare prompts
+        prompts = list(self.activity_prompts.values())
+        text = self.tokenizer(prompts)
+        text = text.to(self.device)
+
+        # Preprocess images
+        image_tensors = torch.cat(images,dim=0).to(self.device)
+        with torch.no_grad():
+            image_features = self.model.encode_image(image_tensors)
+            text_features = self.model.encode_text(text)
+            image_features /= image_features.norm(dim=-1, keepdim=True)
+            text_features /= text_features.norm(dim=-1, keepdim=True)
+            logits_per_image = (100.0 * image_features @ text_features.T)
+            probs = logits_per_image.softmax(dim=-1).cpu().numpy()
+
+        # For each image, get best label and probability
+        indices = probs.argmax(axis=1).tolist()
+        confidences = probs.max(axis=1).tolist()
+        labels = [prompts[i] for i in indices]
+        predicted_activity = [self.prompt_to_activity[label] for label in labels]
+        return confidences, predicted_activity
+    
+
 def create_clip_classifier(
     model_path: str = "openai/clip-vit-base-patch32",
     device: str = "auto",
     input_size: Tuple[int, int] = (1024, 1024),
+    remote_clip: bool = False,
 ) -> CLIPClassifier:
     """
     Factory function to create a CLIP classifier
@@ -197,7 +274,14 @@ def create_clip_classifier(
     Returns:
         Configured CLIPClassifier instance
     """
-    return CLIPClassifier(
+    if remote_clip:
+        return RemoteCLIPClassifier(
+            model_path=model_path,
+            device=device,
+            input_size=input_size,
+        )
+    else:
+        return CLIPClassifier(
         model_path=model_path,
         device=device,
         input_size=input_size,
