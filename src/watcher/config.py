@@ -13,7 +13,7 @@ from typing import Optional, Union, Sequence
 @dataclass
 class PredictionConfig:
 
-    vlm_model: Optional[str] = None
+    vlm_model: Optional[str] = "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m"
     temperature: float = 0.7
     prompting_mode:str="basic"  # Options: "basic", "cot"
 

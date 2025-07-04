@@ -2,17 +2,18 @@ import streamlit as st
 import time
 import io
 from datetime import datetime
-import random
-import json
+
 import os
 from typing import Union,List
-import tempfile
+from pathlib import Path
 from watcher.config import PredictionConfig
 from dotenv import load_dotenv
 from watcher.base import FramesAnalysisResult,Frame
 from watcher.detection.ultralytics_detector import create_yolo_detector
 
-DOT_ENV = "../.env"
+
+DOT_ENV = Path(__file__).resolve().parent.parent / ".env"
+
 YOLO_MODEL_PATH = r"D:\workspace\repos\video-qa\models\yoloe-11l-seg.pt"
 
 def header():
@@ -56,8 +57,8 @@ def header():
     st.markdown(
         """
     <div class="main-header">
-        <h1>🎬 Video Analysis Demo</h1>
-        <p>Upload a video and provide analysis instructions to see AI-powered insights</p>
+        <h1>Surveillance Video Analysis PoC</h1>
+        <p>Leverage AI-powered insights to analyze surveillance videos</p>
     </div>
     """,
         unsafe_allow_html=True,
@@ -88,6 +89,11 @@ def main():
             type=["mp4",],
             help="Supported formats: MP4"
         )
+        with st.form("video_path_form"):
+            video_path = st.text_input("Video path",value=r"D:\workspace\data\video\DJI_0023.MP4",placeholder="Enter video path for large videos 'mp4' only")
+            if st.form_submit_button("Load video",type="secondary",use_container_width=True):
+                video_path = Path(video_path.strip()).resolve()
+                assert video_path.exists(), "Video path does not exist. Delete the quote marks and try again."
 
         st.divider()
 
@@ -101,15 +107,34 @@ def main():
 
         if uploaded_video:
             st.success("✅ Ready to analyze!")
+        elif video_path:
+            st.success("✅ Ready to analyze!")
         else:
             st.warning("⚠️ Please upload a video")
+        
+        if uploaded_video and video_path:
+            st.warning("⚠️ Both video and video path are provided, discarding the uploaded video.")
+            uploaded_video = None
+        
+        
 
-    (tab1,tab2) = st.tabs(
+    (tab1,tab0) = st.tabs(
             [
                 "Video Analysis",
-                "Reconnaissance"
+                "VLM Endpoint",
+                #"Reconnaissance"
             ]
         )
+
+    with tab0:
+        with st.form("vlm_form"):
+            model_name = st.text_input("Model path",value="ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m",placeholder="Enter model path")
+            port = st.number_input("Port",value=8000,placeholder="Enter port")
+            ctx_size = st.number_input("Context size",value=20000,placeholder="Enter context size")
+            vlm_button = st.form_submit_button("Launch VLM Endpoint",use_container_width=True)
+            if vlm_button:
+                launch_vlm_endpoint(model_name=model_name,port=port,ctx_size=ctx_size)
+                st.success("✅ VLM Endpoint launched successfully")
     
     with tab1:
         # Main content area
@@ -120,6 +145,9 @@ def main():
             if uploaded_video:
                 st.subheader("📹 Video")
                 st.video(uploaded_video)  
+            elif video_path:
+                st.subheader("📹 Video")
+                st.video(video_path,format="video/mp4")
             else:
                 st.info("👆 Please upload a video file using the sidebar to get started")                            
 
@@ -131,6 +159,8 @@ def main():
                 st.write(f"**Filename:** {uploaded_video.name}")
                 st.write(f"**File size:** {uploaded_video.size / 1024 / 1024:.2f} MB")
                 st.write(f"**File type:** {uploaded_video.type}")
+            elif video_path:
+                st.write(f"**Video path:** {video_path}")
             
 
         # Analysis Results Section
@@ -140,7 +170,7 @@ def main():
             analyze_button = st.form_submit_button(
             "Start Analysis",
             type="primary",
-            disabled=not uploaded_video,
+            disabled=(not uploaded_video) and (not video_path),
             use_container_width=True,
             )
             
@@ -149,7 +179,7 @@ def main():
             model=os.getenv("MODEL_NAME","openai/Qwen2.5-VL-3B")
 
 
-            if analyze_button and uploaded_video:
+            if analyze_button and (uploaded_video or video_path):
                 st.subheader("🔍 Analysis Results")
                 with st.spinner("Running..."):
                     
@@ -158,8 +188,12 @@ def main():
                                         vlm_model=model,
                                         batch_frames=batch_frames,
                                         )
-                    
-                    result = analyze_video_cli(video=uploaded_video.getvalue(), args=args,metadata=None,activity_analysis=activity_analysis)
+                    if uploaded_video:
+                        video_content = uploaded_video.getvalue()
+                    else:
+                        with open(video_path,"rb") as f:
+                            video_content = f.read()
+                        result = analyze_video_cli(video=video_content, args=args,metadata=None,activity_analysis=activity_analysis)
                     
                     summary = result.get("summary") if isinstance(result, dict) else None
                     timestamps = result.get("timestamps") if isinstance(result, dict) else None
@@ -184,27 +218,25 @@ def main():
                         with st.expander("Metadata"):
                             st.write(metadata)
 
-    with tab2:
-        st.subheader("🎯 Tracking")
+    #with tab2:
+        #st.subheader("🎯 Tracking")
 
-        with st.form("tracking_form"):
-            tracking_button = st.form_submit_button("Annotate frames",type="primary",use_container_width=True,disabled=not uploaded_video)
-            if tracking_button and uploaded_video:
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
-                    tmpfile.write(uploaded_video.getvalue())
-                    video_path = tmpfile.name
-                with st.spinner("Annotating video..."):
-                    annotate_video(video_path,output_path="output.mp4",sliced=False,model_path=YOLO_MODEL_PATH)
+        #with st.form("tracking_form"):
+            #tracking_button = st.form_submit_button("Annotate frames",type="primary",use_container_width=True,disabled=not uploaded_video)
+            #if tracking_button and uploaded_video:
+                #with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
+                    #tmpfile.write(uploaded_video.getvalue())
+                    #video_path = tmpfile.name
+                #with st.spinner("Annotating video..."):
+                #    annotate_video(video_path,output_path="output.mp4",sliced=False,model_path=YOLO_MODEL_PATH)
                 
-                col1,col2 = st.columns(2)
-                with col1:
-                    st.video("output.mp4")
-                with col2:
-                    with st.spinner("Annotating frames..."):
-                        frames = annotate_frames(video_path,sliced=True,model_path=YOLO_MODEL_PATH,sample_freq=sample_freq)
-                    cols = st.columns(len(frames))
-                    for i,frame in enumerate(frames):
-                        cols[i].image(frame.image)            
+                #st.video("output.mp4")
+                #col1,col2 = st.columns(2)
+                #with st.spinner("Annotating frames..."):
+                #    frames = annotate_frames(video_path,sliced=True,model_path=YOLO_MODEL_PATH,sample_freq=sample_freq)
+                #cols = st.columns(len(frames))
+                #for i,frame in enumerate(frames):
+                #    cols[i].image(frame.image)            
 
     # Footer
     st.divider()
@@ -263,8 +295,11 @@ def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activi
             last_line = line
 
     process.stdout.close()
-    returncode = process.wait()
-    print("return code",returncode)
+    process.wait()
+    #print("return code",returncode)
+
+    os.remove(video_path)
+
     try:
         return  json.loads(last_line)
     except Exception as e:
@@ -288,6 +323,7 @@ def annotate_frames(video_path:str,sliced:bool=True,model_path:str="yoloe-11s-se
     from watcher.data import DataLoading
     from watcher.base import Video
     import uuid
+    import torch
 
     data_loader = DataLoading()
     video = Video(video_path=video_path)
@@ -308,11 +344,39 @@ def annotate_frames(video_path:str,sliced:bool=True,model_path:str="yoloe-11s-se
     detector = create_yolo_detector(
         model_path=model_path,
         confidence_threshold=0.3,
-        device="cpu"  # or "cuda" if available
+        device="cuda" if torch.cuda.is_available() else "cpu"  # or "cuda" if available
     )
 
     frames = detector.annotate_frames(frames,sliced=sliced)
     return frames
+
+
+def launch_vlm_endpoint(model_name: str, port: int = 8000, ctx_size: int = 20000):
+    import subprocess
+    from pathlib import Path
+    import os
+
+    load_dotenv(DOT_ENV)
+
+    cwd = Path(__file__).resolve().parent.parent
+
+    cmd = ["cli.bat", "launch_vlm", f"--model_name={model_name}", f"--port={port}", f"--ctx_size={ctx_size}"]
+    print("Launching VLM endpoint with command:", cmd)
+
+    subprocess.Popen(
+        cmd,
+        shell=False,
+        cwd=cwd,
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
+    )
     
+    with st.expander("Logs"):
+        llama_server_log = str(os.environ.get("LLAMA_SERVER_LOG"))
+        if os.path.exists(llama_server_log):
+            with open(llama_server_log,"r") as f:
+                st.code(f.read())
+        else:
+            st.warning("LLAMA_SERVER_LOG is not set in .env file, logs will not be displayed")
+
 if __name__ == "__main__":
     main()

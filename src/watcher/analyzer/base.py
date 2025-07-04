@@ -128,8 +128,19 @@ class ModelConfig:
         self.temperature = temperature
         self.model_type = model_type
         self.cache = cache
-        self.api_base = api_base or os.environ.get("BASE_URL")
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "sk-no-key-required")
+        self.api_base = self.load_api_base(api_base)
+        
+    
+    def load_api_base(self,api_base: Optional[str] = None) -> str:
+        port = os.environ.get('PORT')
+        host = os.environ.get('HOST')
+        if api_base is not None:
+            return api_base
+        elif host and port:
+            return f"http://{host}:{port}/v1"
+        else:
+            raise ValueError("HOST and PORT must be set in environment variables or 'api_base' should be provided as an argument")
     
     def validate(self) -> None:
         """Validate the model configuration."""
@@ -137,7 +148,11 @@ class ModelConfig:
             raise ValueError("Model name must be specified")
         
         if not self.model_name.startswith("openai/"):
-            raise ValueError("Only OpenAI compatible endpoints are supported")
+            pass
+        if self.model_name.startswith("ggml-org/"):
+            self.model_name = "openai/" + self.model_name
+        else:
+            raise ValueError(f"Only OpenAI or ggml-org compatible endpoints are supported. Received: {self.model_name}")
         
         if not (0 <= self.temperature <= 2):
             raise ValueError("Temperature must be between 0 and 2")

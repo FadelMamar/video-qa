@@ -34,7 +34,7 @@ class YOLOModel:
         confidence_threshold: float = 0.3,
         batch_size: int = 8,
         verbose: bool = False,
-        max_det: int = 300,):
+        max_det: int = 50,):
         """
         Initialize YOLO model
         
@@ -333,7 +333,7 @@ class YOLODetector(DroneObjectDetector):
         """
         box_annotator = sv.BoxAnnotator()
         tracker = sv.ByteTrack()
-        trace_annotator = sv.TraceAnnotator()
+        #trace_annotator = sv.TraceAnnotator()
 
         def callback(image: np.ndarray, _: int) -> np.ndarray:
             if sliced:
@@ -344,8 +344,8 @@ class YOLODetector(DroneObjectDetector):
             detections = tracker.update_with_detections(detections)
             annotated_frame = box_annotator.annotate(
                 image.copy(), detections=detections)
-            annotated_frame =  trace_annotator.annotate(
-                annotated_frame, detections=detections)
+            #annotated_frame =  trace_annotator.annotate(
+            #    annotated_frame, detections=detections)
             return annotated_frame
 
         sv.process_video(

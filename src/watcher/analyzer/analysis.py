@@ -76,6 +76,7 @@ class VideoAnalyzer:
         return ModelConfig(
             model_name=self.config.vlm_model,
             temperature=self.config.temperature,
+            model_type="chat",
             cache=True
         )
     
