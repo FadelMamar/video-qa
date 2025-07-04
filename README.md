@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="image.png" alt="Surveillance Video Analysis PoC Banner" width="600"/>
+</div>
+
 # Surveillance Video Analysis PoC
 
 Leverage AI-powered insights to analyze surveillance videos with advanced activity detection, object recognition, and video summarization. This project provides both a command-line interface (CLI) and a modern Streamlit web UI for interactive analysis.
