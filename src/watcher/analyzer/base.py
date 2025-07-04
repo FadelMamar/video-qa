@@ -150,7 +150,9 @@ class ModelConfig:
         else:
             raise ValueError("HOST and PORT must be set in environment variables or 'api_base' should be provided as an argument")
     
-    def validate_model_name(self,name: str) -> str:
+    def validate_model_name(self,name: Optional[str]) -> Optional[str]:
+        if str(name) == "None" or len(str(name)) == 0:
+            return None
         if name.startswith("openai/"):
             pass
         elif name.startswith("ggml-org/"):

@@ -1,6 +1,6 @@
 call cd D:\workspace\repos\video-qa
 
-call .\.venv\Scripts\activate
+call .\.venv-test\Scripts\activate
 
 call load_env.bat
 

@@ -21,6 +21,8 @@ class PredictionConfig:
     temperature: float = 0.7
     prompting_mode:str="basic"  # Options: "basic", "cot"
 
+    analyzer_type:str="dspy"
+
     clip_model:str="google/siglip2-base-patch16-224"
     clip_device:str="cpu"
     clip_input_size:Sequence[int]=(1024,1024)

@@ -7,6 +7,7 @@ vision-language models through the DSPy framework.
 
 import io
 import logging
+import traceback
 from typing import Union, List, Tuple, Optional
 import tempfile
 import os
@@ -58,11 +59,12 @@ class VideoAnalyzer:
             device=self.config.clip_device,
             input_size=self.config.clip_input_size
         )
+        
     
     def _validate_config(self) -> None:
         """Validate the configuration parameters."""
-        if not self.config.vlm_model:
-            raise ValueError("Model must be specified in configuration")
+        #if not self.config.vlm_model:
+        #    raise ValueError("Model must be specified in configuration")
         
         if self.config.temperature < 0 or self.config.temperature > 1:
             raise ValueError("Temperature must be between 0 and 1")
@@ -72,7 +74,6 @@ class VideoAnalyzer:
     
     def _create_model_config(self) -> ModelConfig:
         """Create model configuration from prediction config."""
-        assert self.config.vlm_model is not None, "Model should be validated by _validate_config"
         return ModelConfig(
             vlm_model_name=self.config.vlm_model,
             llm_model_name=self.config.llm_model,
@@ -87,6 +88,9 @@ class VideoAnalyzer:
     def _create_frame_analyzer(self) -> BaseAnalyzer:
         """Create and configure the frame analyzer based on analyzer type."""
         analyzer_type = getattr(self.config, 'analyzer_type', 'dspy').lower()
+        if self.config.vlm_model is None or len(str(self.config.vlm_model)) == 0:
+            logger.info("No VLM model provided, using CLIP classifier instead")
+            return None
         
         if analyzer_type == 'dspy':
             from .dspy_analyzer import DSPyFrameAnalyzer
@@ -142,7 +146,7 @@ class VideoAnalyzer:
             )
             
             # Analyze frames
-            if activity_analysis:
+            if activity_analysis or (self.config.vlm_model is None):
                 frames_analysis, timestamps = self._analyze_frames_activity(loader)
             else:
                 frames_analysis, timestamps = self._analyze_frames(loader)
@@ -229,7 +233,8 @@ class VideoAnalyzer:
         try:
             return self._summarizer.summarize(frames_analysis, timestamps)
         except Exception as e:
-            logger.error(f"Summary generation failed: {e}")
+            traceback.print_exc()
+            #logger.error(f"Summary generation failed: {e}")
             raise RuntimeError(f"Summary generation failed: {str(e)}") from e
     
     def get_analysis_stats(self, result: FramesAnalysisResult) -> dict:

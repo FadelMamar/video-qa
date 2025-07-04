@@ -90,18 +90,13 @@ class VideoSummarizer:
         if len(frame_analyses) != len(timestamps):
             raise ValueError("Number of analyses must match number of timestamps")
         
-        try:
-
-            descriptions = [f"{frame_analyses[i]} at {timestamps[i]:.3f}s" for i in range(len(frame_analyses))]
-            descriptions = "\n".join(descriptions)
-            with dspy.context(lm=self._llm):
-                response = self._summarizer(
-                    frames_description=descriptions, 
-                )
-            summary = response.summary
-            summary = self.translate(summary)
-            return summary
+        descriptions = [f"{frame_analyses[i]} at {timestamps[i]:.3f}s" for i in range(len(frame_analyses))]
+        descriptions = "\n".join(descriptions)
+        with dspy.context(lm=self._llm):
+            response = self._summarizer(
+                frames_description=descriptions, 
+            )
+        summary = response.summary
+        summary = self.translate(summary)
+        return summary
             
-        except Exception as e:
-            logger.error(f"Video summarization failed: {e}")
-            raise RuntimeError(f"Video summarization failed: {e}") from e

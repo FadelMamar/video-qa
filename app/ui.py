@@ -121,20 +121,31 @@ def main():
     (tab1,tab0) = st.tabs(
             [
                 "Video Analysis",
-                "VLM Endpoint",
+                "AI models",
                 #"Reconnaissance"
             ]
         )
 
     with tab0:
         with st.form("vlm_form"):
-            model_name = st.text_input("Model path",value="ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m",placeholder="Enter model path")
-            port = st.number_input("Port",value=8000,placeholder="Enter port")
-            ctx_size = st.number_input("Context size",value=20000,placeholder="Enter context size")
-            vlm_button = st.form_submit_button("Launch VLM Endpoint",use_container_width=True)
+            vlm_model = st.text_input("VLM Model path",
+            #value="ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m",
+            placeholder="example: ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m",
+            help="Enter the path to the VLM model."
+            )
+            llm_model = st.text_input("LLM model path",value="ggml-org/Qwen3-0.6B-GGUF:f16",placeholder="Enter LLM model path")
+            clip_model = "google/siglip2-base-patch16-224" #st.text_input("CLIP model path",value="google/siglip2-base-patch16-224",placeholder="Enter CLIP model path")
+            ctx_size = st.number_input("context size",value=20000,placeholder="Enter context size")
+            vlm_button = st.form_submit_button("Launch AI models",use_container_width=True)
             if vlm_button:
-                launch_vlm_endpoint(model_name=model_name,port=port,ctx_size=ctx_size)
-                st.success("✅ VLM Endpoint launched successfully")
+                vlm_port = os.getenv("VLM_PORT")
+                llm_port = os.getenv("LLM_PORT")
+                if vlm_model:
+                    launch_llm_endpoint(model_name=vlm_model,port=vlm_port,ctx_size=ctx_size)
+                    st.success("✅ Endpoint launched successfully")
+                if llm_model:
+                    launch_llm_endpoint(model_name=llm_model,port=llm_port,ctx_size=ctx_size)
+                    st.success("✅ Endpoint launched successfully")
     
     with tab1:
         # Main content area
@@ -176,7 +187,7 @@ def main():
             
             temperature = float(os.getenv("TEMPERATURE",0.7))
             batch_frames = 1 
-            vlm_model=os.getenv("VLM_MODEL","ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m")
+            #vlm_model=os.getenv("VLM_MODEL","ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m")
             #llm_model=os.getenv("LLM_MODEL","ggml-org/Qwen3-1.7B-GGUF:q4_k_m")
 
             if analyze_button and (uploaded_video or video_path):
@@ -186,8 +197,9 @@ def main():
                     args=PredictionConfig(sample_freq=sample_freq,
                                         temperature=temperature,
                                         vlm_model=vlm_model,
-                                        llm_model=vlm_model,
+                                        llm_model=llm_model,
                                         batch_frames=batch_frames,
+                                        clip_model=clip_model,
                                         )
                     if uploaded_video:
                         video_content = uploaded_video.getvalue()
@@ -263,7 +275,7 @@ def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activi
         video_path = tmpfile.name
 
     cmd = [
-        "cli.bat", "analyze",
+        "python", "cli.py", "analyze",
         video_path,
         f"--args={vars(args)}", 
         f"--activity_analysis={activity_analysis}"
@@ -352,21 +364,21 @@ def annotate_frames(video_path:str,sliced:bool=True,model_path:str="yoloe-11s-se
     return frames
 
 
-def launch_vlm_endpoint(model_name: str, port: int = 8000, ctx_size: int = 20000):
+def launch_llm_endpoint(model_name: str, port: int = 8000, ctx_size: int = 20000):
     import subprocess
     from pathlib import Path
     import os
 
     cwd = Path(__file__).resolve().parent.parent
 
-    cmd = ["cli.bat", "launch_vlm", f"--model_name={model_name}", f"--port={port}", f"--ctx_size={ctx_size}"]
+    cmd = ["python", "cli.py", "launch_vlm", f"--model_name={model_name}", f"--port={port}", f"--ctx_size={ctx_size}"]
     print("Launching VLM endpoint with command:", cmd)
 
     subprocess.Popen(
         cmd,
-        shell=False,
+        shell=True,
         cwd=cwd,
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
+        #creationflags=subprocess.CREATE_NEW_CONSOLE,
     )
     
     with st.expander("Logs"):

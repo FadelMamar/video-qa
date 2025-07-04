@@ -96,6 +96,8 @@ class DSPyModelLoader:
             Configured DSPy language model
         """
         config.validate()
+
+        print(config.llm_api_base,config.api_key)
         
         return dspy.LM(
             config.llm_model_name,
