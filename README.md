@@ -21,7 +21,7 @@ Leverage AI-powered insights to analyze surveillance videos with advanced activi
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/video-qa.git
+git clone https://github.com/FadelMamar/video-qa.git
 cd video-qa
 ```
 
