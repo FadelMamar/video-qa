@@ -44,8 +44,7 @@ For more details or troubleshooting, see the [uv installation guide](https://git
 It's recommended to use a virtual environment.
 
 ```bash
-uv venv .venv
-uv sync
+uv venv .venv --python 3.11
 uv pip install -e .
 ```
 
