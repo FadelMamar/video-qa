@@ -112,7 +112,7 @@ Refer to `example.env` for all available options and their default/example value
 ### 1. Launch the Streamlit UI
 
 ```bash
-streamlit run app/ui.py
+uv run streamlit run app/ui.py
 ```
 
 - Open your browser at the provided URL (usually http://localhost:8501).
