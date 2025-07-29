@@ -8,4 +8,6 @@ call streamlit run app/ui.py --server.port 8501
 
 pause
 
+pause
+
 :: start launch_vlm_endpoint.bat
