@@ -21,7 +21,7 @@ Leverage AI-powered insights to analyze surveillance videos with advanced activi
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/video-qa.git
+git clone https://github.com/FadelMamar/video-qa.git
 cd video-qa
 ```
 
@@ -44,8 +44,7 @@ For more details or troubleshooting, see the [uv installation guide](https://git
 It's recommended to use a virtual environment.
 
 ```bash
-uv venv .venv
-uv sync
+uv venv .venv --python 3.11
 uv pip install -e .
 ```
 
@@ -113,7 +112,7 @@ Refer to `example.env` for all available options and their default/example value
 ### 1. Launch the Streamlit UI
 
 ```bash
-streamlit run app/ui.py
+uv run streamlit run app/ui.py
 ```
 
 - Open your browser at the provided URL (usually http://localhost:8501).
