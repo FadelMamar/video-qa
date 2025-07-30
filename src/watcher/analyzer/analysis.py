@@ -98,22 +98,9 @@ class VideoAnalyzer:
                 model_config=self._model_config,
                 prompting_mode=self.config.prompting_mode
             )
-        
-        elif analyzer_type == 'hf':
-            from .hf_analyzer import HFFrameAnalyzer, HFModelConfig
-            
-            # Create HF-specific config
-            hf_config = HFModelConfig(
-                model_name=getattr(self.config, 'hf_model_name', 'Salesforce/blip-image-captioning-base'),
-                device=getattr(self.config, 'device', 'auto'),
-                max_new_tokens=getattr(self.config, 'max_new_tokens', 30),
-                temperature=self.config.temperature
-            )
-            
-            return HFFrameAnalyzer(model_config=hf_config)
-        
+                
         else:
-            raise ValueError(f"Unsupported analyzer type: {analyzer_type}. Supported types: dspy, hf")
+            raise ValueError(f"Unsupported analyzer type: {analyzer_type}. Supported types: dspy")
     
     def _create_summarizer(self) -> VideoSummarizer:
         """Create and configure the summarizer."""

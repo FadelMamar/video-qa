@@ -85,7 +85,7 @@ ACTIVITY_PROMPTS = {
     ActivityType.SUSPICIOUS_BEHAVIOR: "Suspicious or unusual behavior",
     ActivityType.CROWD_FORMATION: "A crowd forming or moving",
     ActivityType.UNKNOWN: "Unknown or unclear activity"
-        }
+}
 
 
 @dataclass

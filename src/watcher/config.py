@@ -8,7 +8,7 @@ Created on Fri Jun 20 18:25:14 2025
 from dataclasses import dataclass
 import io
 from typing import Optional, Union, Sequence
-
+import torch
 
 @dataclass
 class PredictionConfig:
@@ -24,7 +24,7 @@ class PredictionConfig:
     analyzer_type:str="dspy"
 
     clip_model:str="google/siglip2-base-patch16-224"
-    clip_device:str="cpu"
+    clip_device:str="cpu" if not torch.cuda.is_available() else "cuda"
     clip_input_size:Sequence[int]=(1024,1024)
 
     img_as_bytes:bool=True
