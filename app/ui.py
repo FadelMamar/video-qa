@@ -11,10 +11,10 @@ from dotenv import load_dotenv
 from watcher.base import FramesAnalysisResult,Frame
 from watcher.detection.ultralytics_detector import create_yolo_detector
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DOT_ENV = ROOT_DIR / ".env"
 
-DOT_ENV = Path(__file__).resolve().parent.parent / ".env"
-
-YOLO_MODEL_PATH = r"D:\workspace\repos\video-qa\models\yoloe-11l-seg.pt"
+YOLO_MODEL_PATH = ROOT_DIR / "models" / "yoloe-11l-seg.pt"
 
 def header():
     # Custom CSS for better styling
@@ -136,15 +136,16 @@ def main():
             llm_model = st.text_input("LLM model path",value="ggml-org/Qwen3-0.6B-GGUF:f16",placeholder="Enter LLM model path")
             clip_model = "google/siglip2-base-patch16-224" #st.text_input("CLIP model path",value="google/siglip2-base-patch16-224",placeholder="Enter CLIP model path")
             ctx_size = st.number_input("context size",value=20000,placeholder="Enter context size")
+            device = st.selectbox("device",options=["cpu","cuda"],index=0)
             vlm_button = st.form_submit_button("Launch AI models",use_container_width=True)
             if vlm_button:
                 vlm_port = os.getenv("VLM_PORT")
                 llm_port = os.getenv("LLM_PORT")
                 if vlm_model:
-                    launch_llm_endpoint(model_name=vlm_model,port=vlm_port,ctx_size=ctx_size)
+                    launch_llm_endpoint(model_name=vlm_model,port=int(vlm_port),ctx_size=ctx_size)
                     st.success("✅ Endpoint launched successfully")
                 if llm_model:
-                    launch_llm_endpoint(model_name=llm_model,port=llm_port,ctx_size=ctx_size)
+                    launch_llm_endpoint(model_name=llm_model,port=int(llm_port),ctx_size=ctx_size)
                     st.success("✅ Endpoint launched successfully")
     
     with tab1:
@@ -200,6 +201,7 @@ def main():
                                         llm_model=llm_model,
                                         batch_frames=batch_frames,
                                         clip_model=clip_model,
+                                        clip_device=device,
                                         )
                     if uploaded_video:
                         video_content = uploaded_video.getvalue()
@@ -263,7 +265,7 @@ def main():
     )
 
 
-def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activity_analysis: bool = False) -> FramesAnalysisResult:
+def analyze_video_cli(video: bytes, args: PredictionConfig, metadata=None,activity_analysis: bool = False) -> dict:
     import subprocess
     import json
     import tempfile
@@ -373,13 +375,31 @@ def launch_llm_endpoint(model_name: str, port: int = 8000, ctx_size: int = 20000
 
     cmd = ["python", "cli.py", "launch_vlm", f"--model_name={model_name}", f"--port={port}", f"--ctx_size={ctx_size}"]
     print("Launching VLM endpoint with command:", cmd)
+    
+    load_dotenv(DOT_ENV,override=True)
 
-    subprocess.Popen(
-        cmd,
-        shell=True,
-        cwd=cwd,
-        #creationflags=subprocess.CREATE_NEW_CONSOLE,
-    )
+    if model_name:
+        assert model_name.startswith("ggml-org/"), f"model_name must start with 'ggml-org/': {model_name}"
+        os.environ["MODEL_NAME"] = model_name
+    if port:
+        assert isinstance(port, int), f"port must be an integer: {port} is {type(port)}"
+        os.environ["PORT"] = str(port)
+    if ctx_size:
+        assert isinstance(ctx_size, int), f"ctx_size must be an integer: {ctx_size}"
+        os.environ["CTX_SIZE"] = str(ctx_size)
+    
+    # Launch the batch file as a subprocess in the background
+    llama_server_log = os.environ.get("LLAMA_SERVER_LOG","llama_server.log")
+    with open(llama_server_log, "w") as f:
+        subprocess.Popen(
+            "launch_vlm_endpoint.bat",
+            shell=False,
+            cwd=cwd,
+            #creationflags=subprocess.CREATE_NEW_CONSOLE,
+            env=os.environ.copy(),
+            stdout=f,
+            stderr=f
+        )
     
     with st.expander("Logs"):
         llama_server_log = str(os.environ.get("LLAMA_SERVER_LOG"))

@@ -44,7 +44,7 @@ def launch_vlm(llama_server_path: str=None,model_name: str=None,port: int = 8000
             "launch_vlm_endpoint.bat",
             shell=False,
             cwd=cwd,
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
+            #creationflags=subprocess.CREATE_NEW_CONSOLE,
             env=os.environ.copy(),
             stdout=f,
             stderr=f

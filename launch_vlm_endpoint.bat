@@ -5,7 +5,7 @@
 
 call load_env.bat
 
-call %LLAMA_SERVER_PATH% -hf %MODEL_NAME% ^
+start %LLAMA_SERVER_PATH% -hf %MODEL_NAME% ^
      --port %VLM_PORT% --ctx-size %CTX_SIZE%
 
 call pause
