@@ -16,7 +16,7 @@ class ActivityClassifier(ABC):
     """Activity classification module"""
     
     def __init__(self, model_path: str, 
-                device: str = "cpu",
+                device: str = "auto" ,
                 confidence_threshold: Optional[float] = None):
 
         self.device = device   
