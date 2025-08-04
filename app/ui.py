@@ -91,7 +91,8 @@ def main():
         )
         with st.form("video_path_form"):
             video_path = st.text_input("Video path",value=r"D:\workspace\data\video\DJI_0023.MP4",placeholder="Enter video path for large videos 'mp4' only")
-            if st.form_submit_button("Load video",type="secondary",use_container_width=True):
+            button = st.form_submit_button("Load video",type="secondary",use_container_width=True)
+            if button:
                 video_path = Path(video_path.strip()).resolve()
                 assert video_path.exists(), "Video path does not exist. Delete the quote marks and try again."
 
@@ -107,7 +108,7 @@ def main():
 
         if uploaded_video:
             st.success("✅ Ready to analyze!")
-        elif video_path:
+        elif button:
             st.success("✅ Ready to analyze!")
         else:
             st.warning("⚠️ Please upload a video")
@@ -159,7 +160,7 @@ def main():
             if uploaded_video:
                 st.subheader("📹 Video")
                 st.video(uploaded_video)  
-            elif video_path:
+            elif button:
                 st.subheader("📹 Video")
                 st.video(video_path,format="video/mp4")
             else:
