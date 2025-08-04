@@ -13,7 +13,7 @@ if __name__ == "__main__":
     load_dotenv("../.env")
 
     args = PredictionConfig(clip_model="google/siglip2-base-patch16-224",
-                            clip_device="cpu",
+                            clip_device="auto",
                             clip_input_size=(1024,1024),
                             vlm_model=None,#"ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m",
                             llm_model="ggml-org/Qwen3-1.7B-GGUF:q4_k_m",

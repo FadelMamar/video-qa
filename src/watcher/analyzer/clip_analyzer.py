@@ -38,7 +38,7 @@ class CLIPClassifier(ActivityClassifier):
     def __init__(
         self,
         model_path: str = "google/siglip2-base-patch16-224",
-        device: str = "cpu",
+        device: str = "auto",
         input_size: Tuple[int, int] = (224, 224),
     ):
         """
@@ -189,7 +189,7 @@ class RemoteCLIPClassifier(CLIPClassifier):
     def __init__(
         self,
         model_path: str,
-        device: str = "cpu",
+        device: str = "auto" ,
         input_size: tuple = (224, 224),
     ):
         self.input_size = input_size

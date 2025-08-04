@@ -14,7 +14,7 @@ import torch
 class PredictionConfig:
 
     vlm_model: Optional[str] = "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:q4_k_m"
-    llm_model: Optional[str] = "ggml-org/Qwen3-1.7B-GGUF:q4_k_m"
+    llm_model: Optional[str] = "ggml-org/Qwen3-0.6B-GGUF:f16"
     vlm_api_base: Optional[str] = None
     llm_api_base: Optional[str] = None
     api_key: Optional[str] = None
@@ -24,7 +24,7 @@ class PredictionConfig:
     analyzer_type:str="dspy"
 
     clip_model:str="google/siglip2-base-patch16-224"
-    clip_device:str="cpu" if not torch.cuda.is_available() else "cuda"
+    clip_device:str="auto"  # Options: "auto", "cpu", "cuda"
     clip_input_size:Sequence[int]=(1024,1024)
 
     img_as_bytes:bool=True
@@ -38,8 +38,7 @@ class PredictionConfig:
     
 
     def __post_init__(self):
-        # if not isinstance(self.video,str) or not isinstance(self.video,io.BytesIO):
-        #     raise ValueError(f"video is of type 'str' or 'io.BytesIO' only. Received {type(self.video)}")
+        
         if not isinstance(self.sample_freq, int) or self.sample_freq <= 0:
             raise ValueError("sample_freq must be a positive integer")
         if not isinstance(self.batch_frames, int) or self.batch_frames <= 0:
@@ -49,3 +48,4 @@ class PredictionConfig:
             raise ValueError("image_quality must be an integer between 1 and 100")
         
         assert self.max_frames is None or self.max_frames > 0, "max_frames must be a positive integer"
+

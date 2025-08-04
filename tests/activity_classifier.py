@@ -10,7 +10,7 @@ def run_clip_classifier():
 
     clip_classifier = create_clip_classifier(
         model_path=MODEL_PATH,
-        device="cpu",
+        device="auto",
         input_size=(1024,1024),
         remote_clip=True
     )

@@ -29,7 +29,7 @@ class YOLOModel:
     
     def __init__(self, 
         model_path: str, 
-        device: str = "cpu", 
+        device: str = "auto", 
         input_size: Tuple[int, int] = (640, 640), 
         confidence_threshold: float = 0.3,
         batch_size: int = 8,
@@ -48,6 +48,8 @@ class YOLOModel:
         """
         self.model_path = model_path
         self.device = device
+        if device == "auto":
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.input_size = input_size
         self.confidence_threshold = confidence_threshold
         self.max_det = max_det
@@ -201,7 +203,7 @@ class YOLODetector(DroneObjectDetector):
         self,
         model_path: str,
         confidence_threshold: float = 0.3,
-        device: Optional[str] = None,
+        device: str="auto",
         batch_size: int = 8,
         input_size: Tuple[int, int] = (640, 640),
         label_map: Optional[Dict[int, str]] = None,
@@ -227,10 +229,9 @@ class YOLODetector(DroneObjectDetector):
         self.max_det = max_det
         
         # Set device
-        if device is None:
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        else:
-            self.device = device
+        self.device = device
+        if device == "auto":
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'           
         
         self.model = self._load_model(model_path)
         self.label_map = self.model.label_map
@@ -364,7 +365,7 @@ class YOLODetector(DroneObjectDetector):
 def create_yolo_detector(
     model_path: str,
     confidence_threshold: float = 0.3,
-    device: Optional[str] = None,
+    device: str="auto",
     **kwargs
 ) -> YOLODetector:
     """

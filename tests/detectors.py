@@ -30,7 +30,7 @@ def run():
     detector = create_yolo_detector(
         model_path=MODEL_PATH,
         confidence_threshold=0.3,
-        device="cpu"  # or "cuda" if available
+        device="auto"  # or "cuda" if available
     )
 
     # Run inference on the dummy frame
@@ -52,7 +52,7 @@ def run_video():
         model_path=MODEL_PATH,
         confidence_threshold=0.3,
         input_size=(640,640),
-        device="cpu"  # or "cuda" if available
+        device="auto"  # or "cuda" if available
     )
 
     detector.inference_video(VIDEO_PATH,output_path="output.mp4",sliced=False)
