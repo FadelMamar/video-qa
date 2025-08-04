@@ -136,18 +136,20 @@ def main():
             llm_model = st.text_input("LLM model path",value="ggml-org/Qwen3-0.6B-GGUF:f16",placeholder="Enter LLM model path")
             clip_model = "google/siglip2-base-patch16-224" #st.text_input("CLIP model path",value="google/siglip2-base-patch16-224",placeholder="Enter CLIP model path")
             ctx_size = st.number_input("context size",value=20000,placeholder="Enter context size")
-            device = st.selectbox("device",options=["cpu","cuda"],index=0)
+            
             vlm_button = st.form_submit_button("Launch AI models",use_container_width=True)
+
             if vlm_button:
                 vlm_port = os.getenv("VLM_PORT")
                 llm_port = os.getenv("LLM_PORT")
-                if vlm_model:
-                    launch_llm_endpoint(model_name=vlm_model,port=int(vlm_port),ctx_size=ctx_size)
-                    st.success("✅ Endpoint launched successfully")
                 if llm_model:
                     launch_llm_endpoint(model_name=llm_model,port=int(llm_port),ctx_size=ctx_size)
                     st.success("✅ Endpoint launched successfully")
     
+                if vlm_model:
+                    launch_llm_endpoint(model_name=vlm_model,port=int(vlm_port),ctx_size=ctx_size)
+                    st.success("✅ Endpoint launched successfully")
+                
     with tab1:
         # Main content area
         col1, col2 = st.columns([2, 1])
@@ -185,6 +187,7 @@ def main():
             disabled=(not uploaded_video) and (not video_path),
             use_container_width=True,
             )
+            device = st.selectbox("device",options=["cpu","cuda"],index=0)
             
             temperature = float(os.getenv("TEMPERATURE",0.7))
             batch_frames = 1 
@@ -372,9 +375,6 @@ def launch_llm_endpoint(model_name: str, port: int = 8000, ctx_size: int = 20000
     import os
 
     cwd = Path(__file__).resolve().parent.parent
-
-    cmd = ["python", "cli.py", "launch_vlm", f"--model_name={model_name}", f"--port={port}", f"--ctx_size={ctx_size}"]
-    print("Launching VLM endpoint with command:", cmd)
     
     load_dotenv(DOT_ENV,override=True)
 
